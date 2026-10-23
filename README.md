@@ -47,8 +47,30 @@ Or add the pieces yourself:
 
 ```bash
 claude mcp add --scope user dtly -- npx -y @dnyantra/dtly mcp
-npx @dnyantra/dtly skill install
+npx @dnyantra/dtly skill install --agent claude
 ```
+
+### Use it from Codex, Cursor, Gemini CLI, Copilot or Windsurf
+
+The skill uses the open [Agent Skills](https://agentskills.io) format, so one command installs it for
+every supported agent:
+
+```bash
+npx skills add dnyantra/dtly          # or: npx @dnyantra/dtly skill install --agent all
+```
+
+Then add the MCP server (the editing tools) to your agent:
+
+| Agent | Setup |
+|---|---|
+| Codex | `codex mcp add dtly -- npx -y @dnyantra/dtly mcp` |
+| Cursor | `~/.cursor/mcp.json` → `{"mcpServers": {"dtly": {"command": "npx", "args": ["-y", "@dnyantra/dtly", "mcp"]}}}` |
+| Gemini CLI | `~/.gemini/settings.json` → same `mcpServers` block as Cursor |
+| VS Code + Copilot | `.vscode/mcp.json` → `{"servers": {"dtly": {"type": "stdio", "command": "npx", "args": ["-y", "@dnyantra/dtly", "mcp"]}}}` |
+| Windsurf | `~/.codeium/windsurf/mcp_config.json` → same `mcpServers` block as Cursor |
+
+`npx @dnyantra/dtly setup <agent>` prints these steps for your agent. Agents without MCP can still use
+DT.ly through the skill's CLI fallback (`init`, `still`, `sheet`, `render`).
 
 Then ask for things like *"make a 10 second kinetic typography opener for my bakery"* or
 *"ease the call-to-action in with a spring and move it 0.3 s later"*.
@@ -99,7 +121,8 @@ dtly sheet  <project.json> <out.png> <t1,t2,...>
 dtly studio <project.json> [--port 4400] [--no-open]
 dtly presets
 dtly mcp
-dtly skill install [--dir path]
+dtly setup <claude|codex|cursor|gemini|copilot|windsurf>
+dtly skill install [--agent claude|codex|cursor|gemini|copilot|all] [--project] [--dir path]
 ```
 
 ## Library

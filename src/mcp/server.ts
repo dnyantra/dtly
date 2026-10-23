@@ -13,6 +13,9 @@ import {listPresets, PRESETS} from '../presets/index.js';
 import {renderContactSheet, renderStill, renderVideoParallel} from '../render/export.js';
 import {VERSION} from '../version.js';
 
+// Tools that don't change the project (renders only write preview images to .dtly/frames).
+const READ_ONLY = {readOnlyHint: true, destructiveHint: false, openWorldHint: false};
+
 const studios = new Map<string, {url: string; close: () => void}>();
 
 export const createMcpServer = () => {
@@ -49,16 +52,19 @@ server.registerTool('project_create', {
 })());
 
 server.registerTool('project_describe', {
+  annotations: READ_ONLY,
   description: 'Outline of the project: comps, layer stack (index 0 = top), timing, and which properties are animated with keyframe times. Call this before editing.',
   inputSchema: {project: projectArg},
 }, (a) => run(() => ops.describe(readProject(a.project)))());
 
 server.registerTool('project_validate', {
+  annotations: READ_ONLY,
   description: 'Static checks: broken parent/matte/precomp references, bad in/out points, keyframes outside the comp.',
   inputSchema: {project: projectArg},
 }, (a) => run(() => { const w = ops.validate(readProject(a.project)); return w.length ? w.join('\n') : 'No problems found.'; })());
 
 server.registerTool('layer_get', {
+  annotations: READ_ONLY,
   description: 'Full JSON of one layer, including every property and keyframe.',
   inputSchema: {project: projectArg, layer: z.string()},
 }, (a) => run(() => JSON.stringify(ops.findLayer(readProject(a.project), a.layer).layer, null, 2))());
@@ -139,6 +145,7 @@ server.registerTool('keyframe_ease', {
 }, (a) => run(() => { editProject(a.project, (p) => ops.setEase(p, a.layer, a.property, a.time, (a.ease ?? 'linear') as Ease)); return `Ease set`; })());
 
 server.registerTool('preset_list', {
+  annotations: READ_ONLY,
   description: 'List presets: text animators (text.*), kinetic typography (kinetic.*), openers (opener.*), slideshows (slides.*), transitions (transition.*), elements (element.*), with their parameters.',
   inputSchema: {},
 }, () => run(() => listPresets())());
@@ -173,6 +180,7 @@ server.registerTool('studio_open', {
 })());
 
 server.registerTool('render_frame', {
+  annotations: READ_ONLY,
   description: 'Render one frame and return it as an image so you can check layout, legibility and timing. Use scale ~0.4 for 1080x1920.',
   inputSchema: {project: projectArg, time: z.number(), comp: z.string().optional(), scale: z.number().optional()},
 }, async (a) => {
@@ -186,6 +194,7 @@ server.registerTool('render_frame', {
 });
 
 server.registerTool('render_sheet', {
+  annotations: READ_ONLY,
   description: 'Render a contact sheet of several times in one image — the fastest way to review motion and pacing.',
   inputSchema: {project: projectArg, times: z.array(z.number()), comp: z.string().optional(), columns: z.number().optional()},
 }, async (a) => {

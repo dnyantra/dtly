@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {installSkill, MCP_SETUP, setupGuide, skillTargets} from './agents.js';
 import {listPresets} from './presets/index.js';
 import {renderContactSheet, renderStill, renderVideo, renderVideoParallel} from './render/export.js';
 import {writeProject} from './ops/store.js';
@@ -20,7 +20,9 @@ After Effects-style motion graphics as JSON, rendered to MP4.
   dtly presets                 list text animators, openers, slides, transitions
   dtly studio <project.json> [--port 4400] [--no-open]   browser preview + timeline editor
   dtly mcp                     run the MCP server (stdio) for AI agents
-  dtly skill install [--dir d] copy the agent skill into ~/.claude/skills
+  dtly setup <agent>           how to add DT.ly to claude, codex, cursor, gemini, copilot, windsurf
+  dtly skill install [--agent claude|codex|cursor|gemini|copilot|all] [--project] [--dir d]
+                               install the agent skill (default: all)
 
 Docs: https://github.com/dnyantra/dtly`;
 const flag = (name: string) => { const i = rest.indexOf(`--${name}`); return i >= 0 ? rest[i + 1] : undefined; };
@@ -65,11 +67,12 @@ try {
     const {startMcpServer} = await import('./mcp/server.js');
     await startMcpServer();
   } else if (cmd === 'skill' && rest[0] === 'install') {
-    const base = flag('dir') ?? path.join(process.env.CLAUDE_CONFIG_DIR ?? path.join(os.homedir(), '.claude'), 'skills');
-    const dest = path.join(base, 'dtly');
-    fs.mkdirSync(dest, {recursive: true});
-    fs.cpSync(path.join(pkgRoot, 'plugin/skills/dtly'), dest, {recursive: true});
-    console.log(`Installed the DT.ly skill to ${dest}`);
+    const dirs = flag('dir') ? [flag('dir')!] : skillTargets(flag('agent') ?? 'all', rest.includes('--project'));
+    for (const dest of installSkill(pkgRoot, dirs)) console.log(`Installed the DT.ly skill to ${dest}`);
+    console.log(`Next, add the MCP server to your agent: dtly setup <claude|codex|cursor|gemini|copilot|windsurf>`);
+  } else if (cmd === 'setup') {
+    if (!rest[0]) throw new Error(`Which agent? dtly setup <${Object.keys(MCP_SETUP).join('|')}>`);
+    console.log(setupGuide(rest[0]));
   } else if (cmd === '--version' || cmd === '-v' || cmd === 'version') {
     console.log(VERSION);
   } else {
