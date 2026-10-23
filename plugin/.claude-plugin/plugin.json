@@ -1,17 +1,30 @@
 {
   "name": "dtly",
   "displayName": "DT.ly — Motion Graphics",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "After Effects-style motion graphics for agents: compositions, layers, keyframes, text animators, kinetic typography, openers, slideshows and transitions, rendered to MP4. From the creator of CustomerPro.in.",
-  "author": {"name": "From the creator of CustomerPro.in", "url": "https://customerpro.in"},
+  "author": {
+    "name": "From the creator of CustomerPro.in",
+    "url": "https://customerpro.in"
+  },
   "homepage": "https://github.com/dnyantra/dtly",
   "repository": "https://github.com/dnyantra/dtly",
   "license": "MIT",
-  "keywords": ["motion-graphics", "video", "after-effects", "kinetic-typography", "mcp"],
+  "keywords": [
+    "motion-graphics",
+    "video",
+    "after-effects",
+    "kinetic-typography",
+    "mcp"
+  ],
   "mcpServers": {
     "dtly": {
       "command": "npx",
-      "args": ["-y", "github:dnyantra/dtly#v0.1.0", "mcp"]
+      "args": [
+        "-y",
+        "@dnyantra/dtly@0.1.1",
+        "mcp"
+      ]
     }
   }
 }

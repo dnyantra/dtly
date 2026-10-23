@@ -1,5 +1,7 @@
 # DT.ly
 
+[![npm](https://img.shields.io/npm/v/@dnyantra/dtly)](https://www.npmjs.com/package/@dnyantra/dtly) [![license](https://img.shields.io/npm/l/@dnyantra/dtly)](LICENSE)
+
 **After Effects-style motion graphics for code and AI agents.**
 *From the creator of [CustomerPro.in](https://customerpro.in).*
 
@@ -22,14 +24,14 @@ they make.
 Requires **Node.js 20+** and **FFmpeg** on your PATH (`brew install ffmpeg`, `sudo apt install ffmpeg`, or `winget install ffmpeg`).
 
 ```bash
-npm install github:dnyantra/dtly
+npm install @dnyantra/dtly
 ```
 
 Try it without installing:
 
 ```bash
-npx github:dnyantra/dtly init hello.json --starter kinetic --title "Hello"
-npx github:dnyantra/dtly render hello.json hello.mp4
+npx @dnyantra/dtly init hello.json --starter kinetic --title "Hello"
+npx @dnyantra/dtly render hello.json hello.mp4
 ```
 
 ### Use it from Claude Code
@@ -43,14 +45,16 @@ Install the plugin (MCP server + skill) in one step:
 Or add the pieces yourself:
 
 ```bash
-claude mcp add --scope user dtly -- npx -y github:dnyantra/dtly mcp
-npx github:dnyantra/dtly skill install
+claude mcp add --scope user dtly -- npx -y @dnyantra/dtly mcp
+npx @dnyantra/dtly skill install
 ```
 
 Then ask for things like *"make a 10 second kinetic typography opener for my bakery"* or
 *"ease the call-to-action in with a spring and move it 0.3 s later"*.
 
 ## Command line
+
+After `npm install -g @dnyantra/dtly` (or via `npx @dnyantra/dtly …`):
 
 ```
 dtly init <project.json> [--starter opener|kinetic|bars] [--title "Text"]
@@ -65,8 +69,8 @@ dtly skill install [--dir path]
 ## Library
 
 ```ts
-import {newProject, addLayer, setKeyframe, PRESETS} from 'dtly';
-import {writeProject, renderVideo} from 'dtly/node';
+import {newProject, addLayer, setKeyframe, PRESETS} from '@dnyantra/dtly';
+import {writeProject, renderVideo} from '@dnyantra/dtly/node';
 
 const p = newProject({name: 'Promo', duration: 5, background: '#111'});
 addLayer(p, 'main', {
@@ -81,8 +85,9 @@ writeProject('promo.json', p);
 await renderVideo('promo.json', 'promo.mp4');
 ```
 
-Entry points: `dtly` (model, edits, presets, renderer — browser-safe), `dtly/node` (MP4/PNG
-rendering, project files), `dtly/mcp` (MCP server).
+Entry points: `@dnyantra/dtly` (model, edits, presets, renderer — browser-safe),
+`@dnyantra/dtly/node` (MP4/PNG rendering, project files), `@dnyantra/dtly/mcp` (MCP server).
+Installing the package also gives you the `dtly` command.
 
 ## The model
 

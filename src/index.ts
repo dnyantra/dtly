@@ -1,5 +1,5 @@
 // DT.ly core: the document model, editing operations, presets and the environment-agnostic
-// renderer. Safe to import in a browser; Node rendering lives in "dtly/node".
+// renderer. Safe to import in a browser; Node rendering lives in "@dnyantra/dtly/node".
 export * from './core/model.js';
 export {applyEase, spring, EASE_NAMES} from './core/ease.js';
 export {val, evalKeyframes} from './core/anim.js';

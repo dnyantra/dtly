@@ -1,6 +1,6 @@
 {
-  "name": "dtly",
-  "version": "0.1.0",
+  "name": "@dnyantra/dtly",
+  "version": "0.1.1",
   "description": "DT.ly — After Effects-style motion graphics as JSON, rendered to MP4, with an MCP server for AI agents. From the creator of CustomerPro.in.",
   "keywords": [
     "motion-graphics",
@@ -63,7 +63,8 @@
     "typecheck": "tsc -p .",
     "dev": "tsx src/cli.ts",
     "mcp": "tsx src/cli.ts mcp",
-    "test": "npm run typecheck && tsx test/smoke.ts"
+    "test": "npm run typecheck && tsx test/smoke.ts",
+    "prepublishOnly": "npm test && npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
@@ -74,5 +75,8 @@
     "@types/node": "^26.6.5",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
