@@ -172,4 +172,5 @@ export const animatedPaths = (layer: Layer): {path: string; keyframes: Keyframe<
 export const getPath = (obj: unknown, path: string): unknown =>
   path.split('.').reduce<unknown>((o, k) => (o == null ? undefined : (o as Record<string, unknown>)[k]), obj);
 
-export const snap = (t: number, fps: number) => Math.round(t * fps) / fps;
+// Snap to the frame grid, stored to the millisecond (avoids values like -1.7000000000000002).
+export const snap = (t: number, fps: number) => Math.round((Math.round(t * fps) / fps) * 1000) / 1000;
