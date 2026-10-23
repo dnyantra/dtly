@@ -17,7 +17,7 @@ they make.
 - **Presets** — kinetic typography, logo openers, colour-bar openers, slideshows with Ken Burns, push/whip/wipe/zoom transitions, lower thirds, highlight plates. Presets write ordinary layers, so everything stays editable.
 - **Media** — video, image and audio layers, volume keyframes, music mixing.
 - **Studio** — a browser preview and After Effects-style timeline editor that stays in sync with agents.
-- **Agent-native** — 23 MCP tools plus a skill that teaches motion-design rules.
+- **Agent-native** — 23 MCP tools plus **moti**, a skill that turns your agent into a motion designer.
 - **No browser, no lock-in** — renders with skia-canvas and FFmpeg. MIT licensed.
 
 ## Install
@@ -37,7 +37,7 @@ npx @dnyantra/dtly render hello.json hello.mp4
 
 ### Use it from Claude Code
 
-Install the plugin (MCP server + skill) in one step:
+Install the plugin (MCP server + the **moti** skill) in one step:
 
 ```
 /plugin install dtly --marketplace dnyantra/dtly
@@ -52,8 +52,8 @@ npx @dnyantra/dtly skill install --agent claude
 
 ### Use it from Codex, Cursor, Gemini CLI, Copilot or Windsurf
 
-The skill uses the open [Agent Skills](https://agentskills.io) format, so one command installs it for
-every supported agent:
+The **moti** skill uses the open [Agent Skills](https://agentskills.io) format, so one command installs
+it for every supported agent:
 
 ```bash
 npx skills add dnyantra/dtly          # or: npx @dnyantra/dtly skill install --agent all
@@ -72,7 +72,7 @@ Then add the MCP server (the editing tools) to your agent:
 `npx @dnyantra/dtly setup <agent>` prints these steps for your agent. Agents without MCP can still use
 DT.ly through the skill's CLI fallback (`init`, `still`, `sheet`, `render`).
 
-Then ask for things like *"make a 10 second kinetic typography opener for my bakery"* or
+Then ask for things like `/moti make a 10 second kinetic typography opener for my bakery` or
 *"ease the call-to-action in with a spring and move it 0.3 s later"*.
 
 ## Studio — browser preview and timeline editor
@@ -165,7 +165,7 @@ Installing the package also gives you the `dtly` command.
 | Motion blur | `motionBlur: {samples, shutter}` |
 
 Layer index 0 is the top of the stack, as in After Effects. See
-[`plugin/skills/dtly/SKILL.md`](plugin/skills/dtly/SKILL.md) for the full guide.
+[`plugin/skills/moti/SKILL.md`](plugin/skills/moti/SKILL.md) for the full guide.
 
 ## Development
 

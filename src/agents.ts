@@ -18,11 +18,16 @@ export const skillTargets = (agent: string, project: boolean) => {
   throw new Error(`Unknown agent "${agent}". Use claude, codex, cursor, gemini, copilot or all.`);
 };
 
+export const SKILL_NAME = 'moti';
+
 export const installSkill = (pkgRoot: string, dirs: string[]) =>
   dirs.map((base) => {
-    const dest = path.join(base, 'dtly');
+    const dest = path.join(base, SKILL_NAME);
     fs.mkdirSync(dest, {recursive: true});
-    fs.cpSync(path.join(pkgRoot, 'plugin/skills/dtly'), dest, {recursive: true});
+    fs.cpSync(path.join(pkgRoot, 'plugin/skills', SKILL_NAME), dest, {recursive: true});
+    // Before 0.2.2 the skill was called "dtly"; remove that copy so agents don't see it twice.
+    const old = path.join(base, 'dtly', 'SKILL.md');
+    if (fs.existsSync(old) && /^name: dtly$/m.test(fs.readFileSync(old, 'utf8'))) fs.rmSync(path.dirname(old), {recursive: true, force: true});
     return dest;
   });
 
@@ -51,14 +56,14 @@ export const setupGuide = (agent: string) => {
   return [
     `DT.ly setup for ${agent}`,
     '',
-    `1. Skill (motion-design guidance for the agent) → ${skillDir}/dtly`,
+    `1. Skill "moti" (motion-design guidance for the agent) → ${skillDir}/${SKILL_NAME}`,
     `   npx ${PKG} skill install --agent ${agent}`,
     `   (or for every agent at once: npx skills add dnyantra/dtly)`,
     '',
     `2. MCP server (the editing tools) → ${m.file}`,
     ...m.text.split('\n').map((l) => (l ? `   ${l}` : '')),
     '',
-    '3. Restart the agent and ask it to "list the dtly tools" to check.',
+    '3. Restart the agent and try: /moti make a 15 second vertical ad for <your business>',
     'Needs Node.js 20+ and FFmpeg on PATH.',
   ].join('\n');
 };

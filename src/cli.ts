@@ -22,7 +22,7 @@ After Effects-style motion graphics as JSON, rendered to MP4.
   dtly mcp                     run the MCP server (stdio) for AI agents
   dtly setup <agent>           how to add DT.ly to claude, codex, cursor, gemini, copilot, windsurf
   dtly skill install [--agent claude|codex|cursor|gemini|copilot|all] [--project] [--dir d]
-                               install the agent skill (default: all)
+                               install the "moti" agent skill (default: all)
 
 Docs: https://github.com/dnyantra/dtly`;
 const flag = (name: string) => { const i = rest.indexOf(`--${name}`); return i >= 0 ? rest[i + 1] : undefined; };
@@ -68,7 +68,7 @@ try {
     await startMcpServer();
   } else if (cmd === 'skill' && rest[0] === 'install') {
     const dirs = flag('dir') ? [flag('dir')!] : skillTargets(flag('agent') ?? 'all', rest.includes('--project'));
-    for (const dest of installSkill(pkgRoot, dirs)) console.log(`Installed the DT.ly skill to ${dest}`);
+    for (const dest of installSkill(pkgRoot, dirs)) console.log(`Installed the moti skill to ${dest}`);
     console.log(`Next, add the MCP server to your agent: dtly setup <claude|codex|cursor|gemini|copilot|windsurf>`);
   } else if (cmd === 'setup') {
     if (!rest[0]) throw new Error(`Which agent? dtly setup <${Object.keys(MCP_SETUP).join('|')}>`);
