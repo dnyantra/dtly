@@ -169,6 +169,18 @@ export const removeKeyframe = (p: Project, layerId: string, path: string, t: num
   if (cur.keyframes.length === 1 && !(cur as {wiggle?: unknown}).wiggle) setAt(layer as unknown as Record<string, unknown>, path, cur.keyframes[0].v);
 };
 
+// Retimes one keyframe, keeping its value and ease (dragging a key in the timeline).
+export const moveKeyframe = (p: Project, layerId: string, path: string, from: number, to: number) => {
+  const {layer} = findLayer(p, layerId);
+  const cur = getAt(layer, path) as {keyframes: Keyframe<unknown>[]} | undefined;
+  const k = cur?.keyframes?.find((k) => Math.abs(k.t - from) < TIME_EPS);
+  if (!cur || !k) throw new OpError(`No keyframe at ${from}s on ${layerId}.${path}`);
+  const target = Math.round(to * 1000) / 1000;
+  if (cur.keyframes.some((x) => x !== k && Math.abs(x.t - target) < TIME_EPS)) throw new OpError(`There is already a keyframe at ${target}s`);
+  k.t = target;
+  cur.keyframes.sort((a, b) => a.t - b.t);
+};
+
 export const setEase = (p: Project, layerId: string, path: string, t: number, ease: Ease) => {
   const {layer} = findLayer(p, layerId);
   const cur = getAt(layer, path) as {keyframes: Keyframe<unknown>[]} | undefined;

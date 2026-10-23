@@ -13,6 +13,8 @@ import {listPresets, PRESETS} from '../presets/index.js';
 import {renderContactSheet, renderStill, renderVideoParallel} from '../render/export.js';
 import {VERSION} from '../version.js';
 
+const studios = new Map<string, {url: string; close: () => void}>();
+
 export const createMcpServer = () => {
 const server = new McpServer({name: 'dtly', title: 'DT.ly — from the creator of CustomerPro.in', version: VERSION});
 
@@ -126,6 +128,11 @@ server.registerTool('keyframe_remove', {
   inputSchema: {project: projectArg, layer: z.string(), property: z.string(), time: z.number()},
 }, (a) => run(() => { editProject(a.project, (p) => ops.removeKeyframe(p, a.layer, a.property, a.time)); return `Removed keyframe ${a.time}s on ${a.layer}.${a.property}`; })());
 
+server.registerTool('keyframe_move', {
+  description: 'Retime one keyframe (keeps its value and ease), like dragging a key in the timeline.',
+  inputSchema: {project: projectArg, layer: z.string(), property: z.string(), from: z.number(), to: z.number()},
+}, (a) => run(() => { editProject(a.project, (p) => ops.moveKeyframe(p, a.layer, a.property, a.from, a.to)); return `Moved ${a.layer}.${a.property} key ${a.from}s → ${a.to}s`; })());
+
 server.registerTool('keyframe_ease', {
   description: 'Change the ease of the segment leaving the keyframe at `time` (AE: Keyframe Assistant / speed graph).',
   inputSchema: {project: projectArg, layer: z.string(), property: z.string(), time: z.number(), ease: easeArg},
@@ -144,6 +151,25 @@ server.registerTool('preset_apply', {
   if (!preset) throw new Error(`Unknown preset "${a.preset}". Use preset_list.`);
   const r = editProject(a.project, (p) => preset.apply(p, a.comp, a.params ?? {}));
   return `${a.preset}: ${r.created.length ? `created ${r.created.join(', ')}` : 'applied'}${r.note ? `. ${r.note}` : ''}`;
+})());
+
+server.registerTool('studio_open', {
+  description: 'Open DT.ly Studio (browser preview + timeline editor) for a project and return its URL. The human sees your edits live as you make them with the other tools, and can tweak the timeline themselves; their edits save to the same file. Call project_describe again after they say they changed something.',
+  inputSchema: {project: projectArg, open: z.boolean().optional().describe('Also open it in the default browser (default true)'), port: z.number().optional()},
+}, (a) => run(async () => {
+  const file = path.resolve(a.project);
+  let s = studios.get(file);
+  if (!s) {
+    const {startStudio} = await import('../studio/server.js');
+    s = await startStudio({project: file, port: a.port ?? 0});
+    studios.set(file, s);
+  }
+  if (a.open !== false) {
+    const {spawn} = await import('node:child_process');
+    const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'explorer' : 'xdg-open';
+    spawn(opener, [s.url], {stdio: 'ignore', detached: true}).unref();
+  }
+  return `DT.ly Studio for ${path.basename(file)}: ${s.url}`;
 })());
 
 server.registerTool('render_frame', {

@@ -22,6 +22,11 @@ file; you edit it only through the `dtly` MCP tools, then look at rendered frame
    fix, look again. `render_frame` at scale 0.4 for detail. `project_validate` before export.
 6. `render_video` only when the sheet looks right.
 
+**Working with a human:** call `studio_open` early so they can watch the project in DT.ly Studio
+(browser preview + timeline). Your edits appear there live, and they can drag keyframes, trim layers
+or retype text themselves — those edits save to the same file, so call `project_describe` again
+before your next change whenever they say they adjusted something.
+
 ## The model (AE vocabulary)
 
 | After Effects | DT.ly |

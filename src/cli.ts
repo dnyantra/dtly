@@ -18,6 +18,7 @@ After Effects-style motion graphics as JSON, rendered to MP4.
   dtly still  <project.json> <time> <out.png> [--scale 0.5] [--comp id]
   dtly sheet  <project.json> <out.png> <t1,t2,...> [--comp id]
   dtly presets                 list text animators, openers, slides, transitions
+  dtly studio <project.json> [--port 4400] [--no-open]   browser preview + timeline editor
   dtly mcp                     run the MCP server (stdio) for AI agents
   dtly skill install [--dir d] copy the agent skill into ~/.claude/skills
 
@@ -51,6 +52,15 @@ try {
     console.log(`Created ${rest[0]} (${starter.description})\nNext: dtly render ${rest[0]} ${rest[0].replace(/\.json$/, '')}.mp4`);
   } else if (cmd === 'presets') {
     console.log(listPresets());
+  } else if (cmd === 'studio' && rest[0]) {
+    const {startStudio} = await import('./studio/server.js');
+    const {url} = await startStudio({project: rest[0], port: num(flag('port'))});
+    console.log(`${BRAND}\nStudio for ${rest[0]} → ${url}\nEdits save to the file; changes made by agents or other tools appear live. Ctrl+C to stop.`);
+    if (!rest.includes('--no-open')) {
+      const {spawn} = await import('node:child_process');
+      const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'explorer' : 'xdg-open';
+      spawn(opener, [url], {stdio: 'ignore', detached: true}).unref();
+    }
   } else if (cmd === 'mcp') {
     const {startMcpServer} = await import('./mcp/server.js');
     await startMcpServer();

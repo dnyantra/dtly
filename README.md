@@ -16,7 +16,8 @@ they make.
 - **Text animators** — per grapheme, word or line, with stagger, order, blur, tracking, colour and masked line reveals. Indian scripts (Devanagari etc.) keep their conjuncts while animating.
 - **Presets** — kinetic typography, logo openers, colour-bar openers, slideshows with Ken Burns, push/whip/wipe/zoom transitions, lower thirds, highlight plates. Presets write ordinary layers, so everything stays editable.
 - **Media** — video, image and audio layers, volume keyframes, music mixing.
-- **Agent-native** — 21 MCP tools plus a skill that teaches motion-design rules.
+- **Studio** — a browser preview and After Effects-style timeline editor that stays in sync with agents.
+- **Agent-native** — 23 MCP tools plus a skill that teaches motion-design rules.
 - **No browser, no lock-in** — renders with skia-canvas and FFmpeg. MIT licensed.
 
 ## Install
@@ -52,6 +53,40 @@ npx @dnyantra/dtly skill install
 Then ask for things like *"make a 10 second kinetic typography opener for my bakery"* or
 *"ease the call-to-action in with a spring and move it 0.3 s later"*.
 
+## Studio — browser preview and timeline editor
+
+```bash
+npx @dnyantra/dtly studio project.json
+```
+
+![DT.ly Studio](docs/studio.png)
+
+- **Live preview** with the same renderer as the MP4 export, playback with audio, frame stepping.
+- **Timeline**: drag layer bars to move them, drag the ends to trim, twirl open a layer to see every
+  animated property, drag keyframes to retime them, double-click a property row to add a key.
+  Everything snaps to frames and to the playhead.
+- **Inspector**: After Effects-style stopwatches (⏱ animates a property, ◆ adds/removes a key at the
+  playhead, ◀ ▶ jump between keys), scrubby numbers (drag sideways; Shift ×10, Alt ×0.1), colour
+  pickers, text, an ease editor with curve preview (named eases, bezier, springs), raw JSON for the rest.
+- **Viewer**: click to select the layer under the cursor, drag to move it (keyframes it if animated).
+- **Undo/redo**, autosave to the project file, **Render MP4** with progress.
+- **Live with agents**: edits an agent makes through MCP appear instantly; the agent can open the
+  studio for you with the `studio_open` tool.
+
+| Shortcut | Action |
+|---|---|
+| Space | Play / pause |
+| ← / → (Shift: 10 frames) | Step one frame |
+| Home / End | First / last frame |
+| J / K | Previous / next keyframe of the selected layer |
+| [ / ] | Move layer start to playhead / trim layer end at playhead |
+| ⌘Z / ⇧⌘Z | Undo / redo |
+| ⌘D | Duplicate layer |
+| Delete | Delete selected keyframe (or layer) |
+| ⌘/Ctrl + scroll, + / − | Zoom the timeline |
+
+The studio listens on 127.0.0.1 only and its API needs a per-session token.
+
 ## Command line
 
 After `npm install -g @dnyantra/dtly` (or via `npx @dnyantra/dtly …`):
@@ -61,6 +96,7 @@ dtly init <project.json> [--starter opener|kinetic|bars] [--title "Text"]
 dtly render <project.json> <out.mp4> [--from s] [--to s] [--comp id] [--workers n]
 dtly still  <project.json> <time> <out.png> [--scale 0.5]
 dtly sheet  <project.json> <out.png> <t1,t2,...>
+dtly studio <project.json> [--port 4400] [--no-open]
 dtly presets
 dtly mcp
 dtly skill install [--dir path]
@@ -114,6 +150,7 @@ Layer index 0 is the top of the stack, as in After Effects. See
 git clone https://github.com/dnyantra/dtly && cd dtly
 npm install          # also builds dist/
 npm test             # typecheck + end-to-end smoke test (renders + MCP round trip)
+npm run test:studio  # drives the Studio in your installed Chrome (puppeteer-core)
 npm run dev -- render examples/kinetic.json out.mp4
 ```
 
@@ -121,7 +158,7 @@ Opening Claude Code in the repo loads the local MCP server (`.mcp.json`) and the
 
 ## Roadmap
 
-- Browser preview and timeline editor on the same renderer
+- Studio: graph editor, drag-to-reorder layers, multi-select, media import by drag and drop
 - Faster rendering: layer-bounds buffers, caching finished layers
 - Templates with brand kits and media slots for fixed 30/60 s videos
 - More AE features: 3D layers and camera, repeaters, path morphing, LUTs

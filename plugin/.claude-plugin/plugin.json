@@ -1,7 +1,7 @@
 {
   "name": "dtly",
   "displayName": "DT.ly — Motion Graphics",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "After Effects-style motion graphics for agents: compositions, layers, keyframes, text animators, kinetic typography, openers, slideshows and transitions, rendered to MP4. From the creator of CustomerPro.in.",
   "author": {
     "name": "From the creator of CustomerPro.in",
@@ -22,7 +22,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@dnyantra/dtly@0.1.1",
+        "@dnyantra/dtly@0.2.0",
         "mcp"
       ]
     }
