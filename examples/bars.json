@@ -1,0 +1,254 @@
+{
+  "dtly": 1,
+  "name": "Motion, made simple",
+  "root": "main",
+  "comps": [
+    {
+      "id": "main",
+      "name": "Main",
+      "width": 1080,
+      "height": 1920,
+      "fps": 30,
+      "duration": 4,
+      "background": "#111111",
+      "layers": [
+        {
+          "type": "text",
+          "name": "bars-title",
+          "text": "Motion, made simple",
+          "size": 135,
+          "weight": 800,
+          "color": "#ffffff",
+          "inPoint": 1.1,
+          "maxWidth": 950.4,
+          "animators": [
+            {
+              "unit": "word",
+              "stagger": 0.18,
+              "duration": 0.35,
+              "ease": "expoOut",
+              "from": {
+                "opacity": 0,
+                "scale": 320,
+                "blur": 14
+              }
+            }
+          ],
+          "id": "bars-title"
+        },
+        {
+          "type": "solid",
+          "name": "bar-4",
+          "color": "#1A1512",
+          "size": [
+            1080,
+            482
+          ],
+          "inPoint": 0.2,
+          "outPoint": 1.8,
+          "transform": {
+            "anchor": [
+              0,
+              0
+            ],
+            "position": {
+              "keyframes": [
+                {
+                  "t": 0.44,
+                  "v": [
+                    -1080,
+                    1440
+                  ],
+                  "ease": "expoInOut"
+                },
+                {
+                  "t": 1.04,
+                  "v": [
+                    0,
+                    1440
+                  ],
+                  "ease": "expoInOut"
+                },
+                {
+                  "t": 1.29,
+                  "v": [
+                    0,
+                    1440
+                  ],
+                  "ease": "expoInOut"
+                },
+                {
+                  "t": 1.84,
+                  "v": [
+                    1080,
+                    1440
+                  ]
+                }
+              ]
+            }
+          },
+          "id": "bar-4"
+        },
+        {
+          "type": "solid",
+          "name": "bar-3",
+          "color": "#F6EEDF",
+          "size": [
+            1080,
+            482
+          ],
+          "inPoint": 0.2,
+          "outPoint": 1.8,
+          "transform": {
+            "anchor": [
+              0,
+              0
+            ],
+            "position": {
+              "keyframes": [
+                {
+                  "t": 0.36,
+                  "v": [
+                    -1080,
+                    960
+                  ],
+                  "ease": "expoInOut"
+                },
+                {
+                  "t": 0.96,
+                  "v": [
+                    0,
+                    960
+                  ],
+                  "ease": "expoInOut"
+                },
+                {
+                  "t": 1.21,
+                  "v": [
+                    0,
+                    960
+                  ],
+                  "ease": "expoInOut"
+                },
+                {
+                  "t": 1.76,
+                  "v": [
+                    1080,
+                    960
+                  ]
+                }
+              ]
+            }
+          },
+          "id": "bar-3"
+        },
+        {
+          "type": "solid",
+          "name": "bar-2",
+          "color": "#FFC93C",
+          "size": [
+            1080,
+            482
+          ],
+          "inPoint": 0.2,
+          "outPoint": 1.8,
+          "transform": {
+            "anchor": [
+              0,
+              0
+            ],
+            "position": {
+              "keyframes": [
+                {
+                  "t": 0.28,
+                  "v": [
+                    -1080,
+                    480
+                  ],
+                  "ease": "expoInOut"
+                },
+                {
+                  "t": 0.88,
+                  "v": [
+                    0,
+                    480
+                  ],
+                  "ease": "expoInOut"
+                },
+                {
+                  "t": 1.13,
+                  "v": [
+                    0,
+                    480
+                  ],
+                  "ease": "expoInOut"
+                },
+                {
+                  "t": 1.68,
+                  "v": [
+                    1080,
+                    480
+                  ]
+                }
+              ]
+            }
+          },
+          "id": "bar-2"
+        },
+        {
+          "type": "solid",
+          "name": "bar-1",
+          "color": "#E8692A",
+          "size": [
+            1080,
+            482
+          ],
+          "inPoint": 0.2,
+          "outPoint": 1.8,
+          "transform": {
+            "anchor": [
+              0,
+              0
+            ],
+            "position": {
+              "keyframes": [
+                {
+                  "t": 0.2,
+                  "v": [
+                    -1080,
+                    0
+                  ],
+                  "ease": "expoInOut"
+                },
+                {
+                  "t": 0.8,
+                  "v": [
+                    0,
+                    0
+                  ],
+                  "ease": "expoInOut"
+                },
+                {
+                  "t": 1.05,
+                  "v": [
+                    0,
+                    0
+                  ],
+                  "ease": "expoInOut"
+                },
+                {
+                  "t": 1.6,
+                  "v": [
+                    1080,
+                    0
+                  ]
+                }
+              ]
+            }
+          },
+          "id": "bar-1"
+        }
+      ]
+    }
+  ]
+}

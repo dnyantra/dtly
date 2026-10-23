@@ -1,0 +1,269 @@
+{
+  "dtly": 1,
+  "name": "DT.ly",
+  "root": "main",
+  "comps": [
+    {
+      "id": "main",
+      "name": "Main",
+      "width": 1080,
+      "height": 1920,
+      "fps": 30,
+      "duration": 6,
+      "background": "#14110f",
+      "layers": [
+        {
+          "type": "text",
+          "name": "opener-tagline",
+          "text": "MADE WITH DT.LY",
+          "size": 60,
+          "weight": 600,
+          "color": "#FFC93C",
+          "inPoint": 1.5,
+          "transform": {
+            "position": [
+              540,
+              1101.6
+            ]
+          },
+          "animators": [
+            {
+              "unit": "line",
+              "clip": true,
+              "stagger": 0.1,
+              "duration": 0.8,
+              "ease": "expoOut",
+              "from": {
+                "y": 86.39999999999999
+              }
+            }
+          ],
+          "id": "opener-tagline"
+        },
+        {
+          "type": "shape",
+          "name": "opener-line",
+          "shape": "line",
+          "points": [
+            [
+              -324,
+              0
+            ],
+            [
+              324,
+              0
+            ]
+          ],
+          "stroke": "#FFC93C",
+          "strokeWidth": 8,
+          "inPoint": 1.2,
+          "transform": {
+            "position": [
+              540,
+              1022.4
+            ]
+          },
+          "trim": {
+            "start": {
+              "keyframes": [
+                {
+                  "t": 1.2,
+                  "v": 50,
+                  "ease": "expoOut"
+                },
+                {
+                  "t": 1.9,
+                  "v": 0
+                }
+              ]
+            },
+            "end": {
+              "keyframes": [
+                {
+                  "t": 1.2,
+                  "v": 50,
+                  "ease": "expoOut"
+                },
+                {
+                  "t": 1.9,
+                  "v": 100
+                }
+              ]
+            }
+          },
+          "id": "opener-line"
+        },
+        {
+          "type": "text",
+          "name": "opener-title",
+          "text": "DT.ly",
+          "size": 144,
+          "weight": 800,
+          "color": "#ffffff",
+          "inPoint": 0.8,
+          "maxWidth": 950.4,
+          "transform": {
+            "position": [
+              540,
+              900
+            ]
+          },
+          "animators": [
+            {
+              "unit": "grapheme",
+              "stagger": 0.025,
+              "duration": 1.1,
+              "ease": "expoOut",
+              "from": {
+                "opacity": 0,
+                "tracking": 40,
+                "blur": 10
+              }
+            }
+          ],
+          "effects": [
+            {
+              "type": "dropShadow",
+              "blur": 30,
+              "distance": 0,
+              "opacity": 50
+            }
+          ],
+          "id": "opener-title"
+        },
+        {
+          "type": "shape",
+          "name": "reveal-burst",
+          "shape": "ellipse",
+          "size": [
+            408.23999999999995,
+            408.23999999999995
+          ],
+          "fill": "#E8692A",
+          "inPoint": 0.7,
+          "outPoint": 1.5,
+          "transform": {
+            "position": [
+              540,
+              900
+            ],
+            "scale": {
+              "keyframes": [
+                {
+                  "t": 0.7,
+                  "v": [
+                    0,
+                    0
+                  ],
+                  "ease": "expoOut"
+                },
+                {
+                  "t": 1.2,
+                  "v": [
+                    220,
+                    220
+                  ]
+                }
+              ]
+            },
+            "opacity": {
+              "keyframes": [
+                {
+                  "t": 0.9,
+                  "v": 90
+                },
+                {
+                  "t": 1.5,
+                  "v": 0
+                }
+              ]
+            }
+          },
+          "id": "reveal-burst"
+        },
+        {
+          "type": "shape",
+          "name": "reveal-ring",
+          "shape": "ellipse",
+          "size": [
+            453.59999999999997,
+            453.59999999999997
+          ],
+          "stroke": "#E8692A",
+          "strokeWidth": 10,
+          "inPoint": 0,
+          "outPoint": 1.6,
+          "motionBlur": {
+            "samples": 8
+          },
+          "transform": {
+            "position": [
+              540,
+              900
+            ],
+            "rotation": {
+              "keyframes": [
+                {
+                  "t": 0,
+                  "v": -120,
+                  "ease": "expoOut"
+                },
+                {
+                  "t": 1,
+                  "v": 0
+                }
+              ]
+            },
+            "scale": {
+              "keyframes": [
+                {
+                  "t": 0.7,
+                  "v": [
+                    100,
+                    100
+                  ],
+                  "ease": "expoOut"
+                },
+                {
+                  "t": 1.4,
+                  "v": [
+                    260,
+                    260
+                  ]
+                }
+              ]
+            },
+            "opacity": {
+              "keyframes": [
+                {
+                  "t": 0.9,
+                  "v": 100
+                },
+                {
+                  "t": 1.4,
+                  "v": 0
+                }
+              ]
+            }
+          },
+          "trim": {
+            "end": {
+              "keyframes": [
+                {
+                  "t": 0,
+                  "v": 0,
+                  "ease": "expoOut"
+                },
+                {
+                  "t": 0.8,
+                  "v": 100
+                }
+              ]
+            }
+          },
+          "id": "reveal-ring"
+        }
+      ]
+    }
+  ]
+}

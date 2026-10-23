@@ -1,0 +1,288 @@
+{
+  "dtly": 1,
+  "name": "DT.ly",
+  "root": "main",
+  "comps": [
+    {
+      "id": "main",
+      "name": "Main",
+      "width": 1080,
+      "height": 1920,
+      "fps": 30,
+      "duration": 5.5,
+      "background": "#101418",
+      "layers": [
+        {
+          "type": "text",
+          "name": "kinetic-4",
+          "text": "DT.ly",
+          "inPoint": 2.69,
+          "outPoint": 5.5,
+          "size": 162,
+          "weight": 800,
+          "color": "#FFC93C",
+          "maxWidth": 928.8,
+          "transform": {
+            "position": [
+              540,
+              960
+            ],
+            "scale": {
+              "keyframes": [
+                {
+                  "t": 2.69,
+                  "v": [
+                    100,
+                    100
+                  ]
+                },
+                {
+                  "t": 5.5,
+                  "v": [
+                    132.1142857142857,
+                    132.1142857142857
+                  ]
+                }
+              ]
+            }
+          },
+          "animators": [
+            {
+              "unit": "word",
+              "stagger": 0.18,
+              "duration": 0.35,
+              "ease": "expoOut",
+              "from": {
+                "opacity": 0,
+                "scale": 320,
+                "blur": 14
+              }
+            }
+          ],
+          "id": "kinetic-4"
+        },
+        {
+          "type": "text",
+          "name": "kinetic-3",
+          "text": "with words",
+          "inPoint": 1.7,
+          "outPoint": 2.69,
+          "size": 120,
+          "weight": 800,
+          "color": "#ffffff",
+          "maxWidth": 928.8,
+          "transform": {
+            "position": [
+              540,
+              960
+            ],
+            "scale": {
+              "keyframes": [
+                {
+                  "t": 1.7,
+                  "v": [
+                    100,
+                    100
+                  ]
+                },
+                {
+                  "t": 2.69,
+                  "v": [
+                    108,
+                    108
+                  ]
+                }
+              ]
+            }
+          },
+          "animators": [
+            {
+              "unit": "word",
+              "stagger": 0.18,
+              "duration": 0.35,
+              "ease": "expoOut",
+              "from": {
+                "opacity": 0,
+                "scale": 320,
+                "blur": 14
+              }
+            },
+            {
+              "unit": "word",
+              "mode": "out",
+              "stagger": 0.03,
+              "duration": 0.18,
+              "ease": "easeIn",
+              "from": {
+                "opacity": 0,
+                "scale": 80
+              }
+            }
+          ],
+          "id": "kinetic-3"
+        },
+        {
+          "type": "text",
+          "name": "kinetic-2",
+          "text": "motion",
+          "inPoint": 1,
+          "outPoint": 1.7,
+          "size": 120,
+          "weight": 800,
+          "color": "#ffffff",
+          "maxWidth": 928.8,
+          "transform": {
+            "position": [
+              540,
+              960
+            ],
+            "scale": {
+              "keyframes": [
+                {
+                  "t": 1,
+                  "v": [
+                    100,
+                    100
+                  ]
+                },
+                {
+                  "t": 1.7,
+                  "v": [
+                    108,
+                    108
+                  ]
+                }
+              ]
+            }
+          },
+          "animators": [
+            {
+              "unit": "word",
+              "stagger": 0.18,
+              "duration": 0.35,
+              "ease": "expoOut",
+              "from": {
+                "opacity": 0,
+                "scale": 320,
+                "blur": 14
+              }
+            },
+            {
+              "unit": "word",
+              "mode": "out",
+              "stagger": 0.03,
+              "duration": 0.18,
+              "ease": "easeIn",
+              "from": {
+                "opacity": 0,
+                "scale": 80
+              }
+            }
+          ],
+          "id": "kinetic-2"
+        },
+        {
+          "type": "text",
+          "name": "kinetic-1",
+          "text": "Make",
+          "inPoint": 0.3,
+          "outPoint": 1,
+          "size": 120,
+          "weight": 800,
+          "color": "#ffffff",
+          "maxWidth": 928.8,
+          "transform": {
+            "position": [
+              540,
+              960
+            ],
+            "scale": {
+              "keyframes": [
+                {
+                  "t": 0.3,
+                  "v": [
+                    100,
+                    100
+                  ]
+                },
+                {
+                  "t": 1,
+                  "v": [
+                    108,
+                    108
+                  ]
+                }
+              ]
+            }
+          },
+          "animators": [
+            {
+              "unit": "word",
+              "stagger": 0.18,
+              "duration": 0.35,
+              "ease": "expoOut",
+              "from": {
+                "opacity": 0,
+                "scale": 320,
+                "blur": 14
+              }
+            },
+            {
+              "unit": "word",
+              "mode": "out",
+              "stagger": 0.03,
+              "duration": 0.18,
+              "ease": "easeIn",
+              "from": {
+                "opacity": 0,
+                "scale": 80
+              }
+            }
+          ],
+          "id": "kinetic-1"
+        },
+        {
+          "type": "shape",
+          "name": "glow",
+          "shape": "ellipse",
+          "size": [
+            900,
+            900
+          ],
+          "fill": "#1f3b57",
+          "effects": [
+            {
+              "type": "blur",
+              "radius": 120
+            }
+          ],
+          "transform": {
+            "position": [
+              540,
+              960
+            ],
+            "scale": {
+              "keyframes": [
+                {
+                  "t": 0,
+                  "v": [
+                    80,
+                    80
+                  ]
+                },
+                {
+                  "t": 5.5,
+                  "v": [
+                    120,
+                    120
+                  ]
+                }
+              ]
+            }
+          },
+          "id": "glow"
+        }
+      ]
+    }
+  ]
+}

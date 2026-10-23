@@ -1,0 +1,78 @@
+{
+  "name": "dtly",
+  "version": "0.1.0",
+  "description": "DT.ly — After Effects-style motion graphics as JSON, rendered to MP4, with an MCP server for AI agents. From the creator of CustomerPro.in.",
+  "keywords": [
+    "motion-graphics",
+    "video",
+    "after-effects",
+    "kinetic-typography",
+    "animation",
+    "mcp",
+    "ffmpeg",
+    "canvas",
+    "devanagari",
+    "claude"
+  ],
+  "homepage": "https://github.com/dnyantra/dtly#readme",
+  "bugs": {
+    "url": "https://github.com/dnyantra/dtly/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dnyantra/dtly.git"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "From the creator of CustomerPro.in",
+    "url": "https://customerpro.in"
+  },
+  "type": "module",
+  "bin": {
+    "dtly": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "default": "./dist/mcp/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "fonts",
+    "plugin/skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/cli.js",
+    "prepare": "npm run build",
+    "typecheck": "tsc -p .",
+    "dev": "tsx src/cli.ts",
+    "mcp": "tsx src/cli.ts mcp",
+    "test": "npm run typecheck && tsx test/smoke.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "skia-canvas": "^4.0.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

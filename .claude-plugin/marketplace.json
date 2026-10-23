@@ -1,0 +1,14 @@
+{
+  "name": "dtly",
+  "description": "DT.ly — motion graphics for AI agents. From the creator of CustomerPro.in.",
+  "owner": {"name": "From the creator of CustomerPro.in", "url": "https://customerpro.in"},
+  "plugins": [
+    {
+      "name": "dtly",
+      "source": "./plugin",
+      "description": "MCP server + skill for After Effects-style motion graphics: keyframes, text animators, kinetic typography, openers, slideshows, transitions.",
+      "category": "media",
+      "tags": ["video", "motion-graphics", "mcp"]
+    }
+  ]
+}
