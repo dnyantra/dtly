@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "dtly": {
+    "dtly-dev": {
       "command": "npx",
       "args": ["tsx", "src/cli.ts", "mcp"]
     }
