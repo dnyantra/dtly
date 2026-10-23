@@ -3,9 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {installSkill, MCP_SETUP, setupGuide, skillTargets} from './agents.js';
-import {listPresets} from './presets/index.js';
+import {listPresets, PRESETS} from './presets/index.js';
 import {renderContactSheet, renderStill, renderVideo, renderVideoParallel} from './render/export.js';
-import {writeProject} from './ops/store.js';
+import {editProject, writeProject} from './ops/store.js';
+import {addSvg} from './ops/ops.js';
 import {STARTERS} from './starter.js';
 import {BRAND, VERSION} from './version.js';
 
@@ -17,7 +18,13 @@ After Effects-style motion graphics as JSON, rendered to MP4.
   dtly render <project.json> <out.mp4> [--from s] [--to s] [--comp id] [--workers n]
   dtly still  <project.json> <time> <out.png> [--scale 0.5] [--comp id]
   dtly sheet  <project.json> <out.png> <t1,t2,...> [--comp id]
-  dtly presets                 list text animators, openers, slides, transitions
+  dtly import-svg <project.json> <file.svg> [--width 600] [--at x,y] [--name logo] [--color #hex] [--comp id]
+                               add an SVG as editable shape layers
+  dtly captions <project.json> <audio|video|.srt|.vtt|.json> [--lang mr-IN] [--words 4] [--y px] [--highlight #hex] [--offset s] [--uppercase]
+                               word-highlight captions (audio/video is transcribed with Sarvam; needs SARVAM_API_KEY)
+  dtly map-tiles <out.png> --tiles <url with {z}/{x}/{y}> (--route "lat,lon;lat,lon" | --bounds latN,lonW,latS,lonE) [--size 1080x1920] [--attribution "© OpenStreetMap"]
+                               stitch a map background for map.route (you choose the provider and its licence)
+  dtly presets                 list text animators, openers, slides, transitions, charts, captions, maps
   dtly studio <project.json> [--port 4400] [--no-open]   browser preview + timeline editor
   dtly mcp                     run the MCP server (stdio) for AI agents
   dtly setup <agent>           how to add DT.ly to claude, codex, cursor, gemini, copilot, windsurf
@@ -52,6 +59,25 @@ try {
     if (fs.existsSync(rest[0])) throw new Error(`${rest[0]} already exists`);
     writeProject(rest[0], starter.build(flag('title') ?? 'DT.ly'));
     console.log(`Created ${rest[0]} (${starter.description})\nNext: dtly render ${rest[0]} ${rest[0].replace(/\.json$/, '')}.mp4`);
+  } else if (cmd === 'import-svg' && rest[1]) {
+    const at = flag('at')?.split(',').map(Number) as [number, number] | undefined;
+    const r = editProject(rest[0], (p) => addSvg(p, flag('comp'), fs.readFileSync(rest[1], 'utf8'), {name: flag('name') ?? path.basename(rest[1], '.svg'), width: num(flag('width')), position: at, color: flag('color')}));
+    console.log(`Added "${r.group}" with ${r.parts} shape layers (${Math.round(r.size[0])}×${Math.round(r.size[1])} px). Animate the group layer, or each part.`);
+  } else if (cmd === 'captions' && rest[1]) {
+    const {loadCaptions} = await import('./render/transcribe.js');
+    const src = await loadCaptions(rest[1], flag('lang'));
+    const y = num(flag('y'));
+    const r = editProject(rest[0], (p) => PRESETS['captions.add'].apply(p, flag('comp'), {...src, maxWords: num(flag('words')), highlight: flag('highlight'), offset: num(flag('offset')), uppercase: rest.includes('--uppercase'), ...(y ? {position: [p.comps.find((c) => c.id === (flag('comp') ?? p.root))!.width / 2, y]} : {})}));
+    console.log(`Added ${r.created.length} caption layers. ${r.note ?? ''}`);
+  } else if (cmd === 'map-tiles' && rest[0]) {
+    const {stitchMap} = await import('./render/tiles.js');
+    const tiles = flag('tiles');
+    if (!tiles) throw new Error('--tiles <url template> is required, e.g. https://api.maptiler.com/maps/streets/256/{z}/{x}/{y}.png?key=KEY');
+    const [w, h] = (flag('size') ?? '1080x1920').split('x').map(Number);
+    const route = flag('route')?.split(';').map((p) => p.split(',').map(Number) as [number, number]);
+    const b = flag('bounds')?.split(',').map(Number);
+    const view = await stitchMap(rest[0], {tiles, route, bounds: b ? [[b[0], b[1]], [b[2], b[3]]] : undefined, size: [w, h], attribution: flag('attribution')});
+    console.log(`Saved ${rest[0]} (+ ${rest[0]}.json with bounds ${JSON.stringify(view.bounds)}). Use it as map.route's background: {src, bounds}.`);
   } else if (cmd === 'presets') {
     console.log(listPresets());
   } else if (cmd === 'studio' && rest[0]) {

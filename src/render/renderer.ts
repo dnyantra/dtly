@@ -2,8 +2,14 @@
 // The same code runs in Node (skia-canvas) for export and in the browser for preview.
 import {val} from '../core/anim.js';
 import {parseColor, rgbaString} from '../core/color.js';
-import type {Composition, Effect, Layer, Project, ShapeLayer, Vec2, VideoLayer} from '../core/model.js';
+import type {Composition, Effect, Layer, Project, Vec2, VideoLayer} from '../core/model.js';
 import {drawText} from '../core/text.js';
+import {drawShape} from './shapes.js';
+import {drawWithFx} from './fx.js';
+import {applyGrade, drawVignette, GRADE_TYPES, preloadLuts} from './grade.js';
+import {drawPerspective, tiltCorners} from './perspective.js';
+import {parsePath, tracePath} from '../core/path.js';
+import {LottiePlayer, type LottieHost} from './lottie.js';
 
 type Ctx = CanvasRenderingContext2D;
 export interface CanvasLike { width: number; height: number; getContext(type: '2d'): Ctx }
@@ -15,6 +21,8 @@ export interface Host {
   videoFrame(layer: VideoLayer, sourceTime: number, w: number, h: number, fps: number): Promise<Drawable>;
   // Effects the host applies while decoding video (e.g. static blur in FFmpeg); the renderer skips them.
   bakedVideoEffects?(layer: VideoLayer): Set<Effect>;
+  // Text files referenced by layers (Lottie JSON, LUTs).
+  data(src: string): Promise<string>;
   defaultFont: string;
 }
 
@@ -45,7 +53,16 @@ export class Renderer {
     const list = this.pool.get(`${w}x${h}`);
     const c = list?.pop() ?? this.host.createCanvas(w, h);
     const ctx = c.getContext('2d');
+    // Pooled canvases come back with whatever state their last user left: reset all of it.
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.filter = 'none';
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.setLineDash([]);
     ctx.clearRect(0, 0, w, h);
     return c;
   }
@@ -61,6 +78,7 @@ export class Renderer {
       case 'solid': return layer.size ?? [comp.width, comp.height];
       case 'image': case 'video': return layer.size ?? [comp.width, comp.height];
       case 'precomp': { const c = this.comp(layer.comp); return [c.width, c.height]; }
+      case 'lottie': { const p = this.lotties.get(layer.src); return layer.size ?? (p ? [p.w, p.h] : [comp.width, comp.width]); }
       default: return [0, 0];
     }
   }
@@ -87,7 +105,22 @@ export class Renderer {
     return m;
   }
 
+  // Lottie players, keyed by src; loaded before a frame draws so sizes are known synchronously.
+  private lotties = new Map<string, LottiePlayer>();
+  private async preload(comp: Composition) {
+    for (const l of comp.layers) {
+      if (l.type === 'lottie' && !this.lotties.has(l.src)) {
+        const p = new LottiePlayer(JSON.parse(await this.host.data(l.src)), this.host as unknown as LottieHost);
+        await p.preload();
+        this.lotties.set(l.src, p);
+      }
+      if (l.type === 'precomp') await this.preload(this.comp(l.comp));
+      if (l.effects?.some((e) => e.type === 'lut')) await preloadLuts(l.effects, {loadText: (src) => this.host.data(src)});
+    }
+  }
+
   async renderComp(ctx: Ctx, comp: Composition, t: number, withBackground = true) {
+    await this.preload(comp);
     if (withBackground && comp.background) {
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -100,6 +133,7 @@ export class Renderer {
       const layer = comp.layers[i];
       if (layer.hidden || layer.type === 'audio' || layer.type === 'null') continue;
       if (matteSources.has(layer.id)) continue; // mattes only show through the layer that uses them
+      if (layer.type === 'adjustment') { this.renderAdjustment(ctx, layer, comp, t); continue; }
       await this.renderLayer(ctx, layer, comp, t);
     }
   }
@@ -146,6 +180,23 @@ export class Renderer {
         await this.drawContent(b, layer, comp, st);
         b.restore();
       }
+    } else if (effects.some((e) => e.type === 'cornerPin' || e.type === 'tilt')) {
+      // Perspective: draw the content flat at its own size, then map it through the corner pin.
+      const [w, h] = this.layerSize(layer, comp, t);
+      if (w > 0 && h > 0) {
+        const src = this.acquire(Math.ceil(w), Math.ceil(h));
+        await this.drawContent(src.getContext('2d'), layer, comp, t);
+        const pin = effects.find((e) => e.type === 'cornerPin') as Extract<Effect, {type: 'cornerPin'}> | undefined;
+        const tilt = effects.find((e) => e.type === 'tilt') as Extract<Effect, {type: 'tilt'}> | undefined;
+        const quad = pin
+          ? val(pin.corners, t, [[0, 0], [w, 0], [w, h], [0, h]] as [Vec2, Vec2, Vec2, Vec2])
+          : tiltCorners(w, h, val(tilt!.rotateX, t, 0), val(tilt!.rotateY, t, 0), val(tilt!.rotateZ, t, 0), tilt!.perspective ?? Math.max(w, h) * 2);
+        b.save();
+        b.setTransform(...this.matrix(layer, comp, t));
+        drawPerspective(b, src as unknown as CanvasImageSource, w, h, quad);
+        b.restore();
+        this.release(src);
+      }
     } else {
       b.save();
       b.setTransform(...this.matrix(layer, comp, t));
@@ -153,26 +204,7 @@ export class Renderer {
       b.restore();
     }
 
-    if (layer.masks?.length) {
-      const m = this.matrix(layer, comp, t);
-      for (const mask of layer.masks) {
-        b.save();
-        b.setTransform(...m);
-        b.globalCompositeOperation = mask.inverted ? 'destination-out' : 'destination-in';
-        b.beginPath();
-        if (mask.shape === 'path' && mask.points?.length) {
-          mask.points.forEach(([x, y], i) => (i ? b.lineTo(x, y) : b.moveTo(x, y)));
-          b.closePath();
-        } else {
-          const [x, y, w, h] = val(mask.rect, t, [0, 0, 0, 0] as [number, number, number, number]);
-          if (mask.shape === 'ellipse') b.ellipse(x + w / 2, y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, Math.PI * 2);
-          else b.roundRect(x, y, w, h, mask.radius ?? 0);
-        }
-        b.fillStyle = '#000';
-        b.fill();
-        b.restore();
-      }
-    }
+    if (layer.masks?.length) this.applyMasks(b, layer, comp, t);
 
     for (const e of effects) {
       if (e.type === 'fill') {
@@ -184,6 +216,8 @@ export class Renderer {
         b.restore();
       }
     }
+
+    this.grade(b, effects, comp, t);
 
     if (layer.matte) {
       const src = comp.layers.find((l) => l.id === layer.matte!.layer);
@@ -225,7 +259,72 @@ export class Renderer {
       } else target.drawImage(buf as unknown as CanvasImageSource, 0, 0);
       target.restore();
     }
-    target.drawImage(buf as unknown as CanvasImageSource, 0, 0);
+    if (!drawWithFx(target, buf, effects, t, comp.fps, (w, h) => this.acquire(w, h), (c) => this.release(c as CanvasLike))) target.drawImage(buf as unknown as CanvasImageSource, 0, 0);
+    target.restore();
+    this.release(buf);
+  }
+
+  // Masks are drawn into their own full-frame buffer, then applied with one composite:
+  // this also hides everything when a mask has zero size (some backends skip empty paths).
+  private applyMasks(b: Ctx, layer: Layer, comp: Composition, t: number) {
+    const masks = layer.masks ?? [];
+    const m = this.matrix(layer, comp, t);
+    const mk = this.acquire(comp.width, comp.height);
+    const mc = mk.getContext('2d');
+    masks.forEach((mask, i) => {
+      mc.save();
+      if (i === 0 && mask.inverted) { mc.fillStyle = '#000'; mc.fillRect(0, 0, comp.width, comp.height); }
+      mc.setTransform(...m);
+      mc.globalCompositeOperation = mask.inverted ? 'destination-out' : 'source-over';
+      mc.beginPath();
+      if (mask.shape === 'path' && mask.points?.length) {
+        mask.points.forEach(([x, y], k) => (k ? mc.lineTo(x, y) : mc.moveTo(x, y)));
+        mc.closePath();
+      } else if (mask.shape === 'path' && mask.path) tracePath(mc, parsePath(val(mask.path, t, '')));
+      else {
+        const [x, y, w, h] = val(mask.rect, t, [0, 0, 0, 0] as [number, number, number, number]);
+        if (Math.abs(w) > 0.01 && Math.abs(h) > 0.01) {
+          if (mask.shape === 'ellipse') mc.ellipse(x + w / 2, y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, Math.PI * 2);
+          else mc.roundRect(x, y, w, h, mask.radius ?? 0);
+        }
+      }
+      mc.fillStyle = '#000';
+      mc.fill();
+      mc.restore();
+    });
+    b.save();
+    b.setTransform(1, 0, 0, 1, 0, 0);
+    b.globalCompositeOperation = 'destination-in';
+    b.drawImage(mk as unknown as CanvasImageSource, 0, 0);
+    b.restore();
+    this.release(mk);
+  }
+
+  // Grade effects (curves, wheels, exposure, temperature, LUT) and vignette on a comp-size buffer.
+  private grade(b: Ctx, effects: Effect[], comp: Composition, t: number) {
+    const grades = effects.filter((e) => GRADE_TYPES.has(e.type)) as Parameters<typeof applyGrade>[3];
+    if (grades.length) applyGrade(b, comp.width, comp.height, grades, t);
+    for (const e of effects) if (e.type === 'vignette') drawVignette(b, comp.width, comp.height, val(e.amount, t, 50), e.softness, e.color);
+  }
+
+  // An adjustment layer re-renders everything already drawn below it through its effects.
+  private renderAdjustment(target: Ctx, layer: Layer, comp: Composition, t: number) {
+    if (!this.isActive(layer, comp, t)) return;
+    const opacity = val(layer.transform?.opacity, t, 100) / 100;
+    const effects = layer.effects ?? [];
+    if (opacity <= 0 || !effects.length) return;
+    const W = comp.width, H = comp.height;
+    const buf = this.acquire(W, H), b = buf.getContext('2d');
+    const filters = filterString(effects, t);
+    if (filters) b.filter = filters;
+    b.drawImage(target.canvas as unknown as CanvasImageSource, 0, 0);
+    b.filter = 'none';
+    this.grade(b, effects, comp, t);
+    if (layer.masks?.length) this.applyMasks(b, layer, comp, t);
+    target.save();
+    target.setTransform(1, 0, 0, 1, 0, 0);
+    target.globalAlpha *= opacity;
+    if (!drawWithFx(target, buf, effects, t, comp.fps, (w, h) => this.acquire(w, h), (c) => this.release(c as CanvasLike))) target.drawImage(buf as unknown as CanvasImageSource, 0, 0);
     target.restore();
     this.release(buf);
   }
@@ -265,6 +364,22 @@ export class Renderer {
         ctx.drawImage(frame as unknown as CanvasImageSource, 0, 0, w, h);
         return;
       }
+      case 'lottie': {
+        const p = this.lotties.get(layer.src);
+        if (!p) return;
+        const [w, h] = layer.size ?? [p.w, p.h];
+        const s = Math.min(w / p.w, h / p.h);
+        const [f0, f1] = layer.frames ?? [p.ip, p.op];
+        const span = Math.max(1, f1 - f0);
+        let f = ((t - inP) * (layer.speed ?? 1) + (layer.timeOffset ?? 0)) * p.fr;
+        f = layer.loop === false ? Math.min(f, span - 0.001) : ((f % span) + span) % span;
+        ctx.save();
+        ctx.translate((w - p.w * s) / 2, (h - p.h * s) / 2);
+        ctx.scale(s, s);
+        p.draw(ctx, f0 + f);
+        ctx.restore();
+        return;
+      }
       case 'precomp': {
         const child = this.comp(layer.comp);
         const ct = (t - inP) * (layer.speed ?? 1) + (layer.timeOffset ?? 0);
@@ -302,66 +417,4 @@ const drawFitted = (ctx: Ctx, img: Drawable, w: number, h: number, fit: 'cover' 
   ctx.clip();
   ctx.drawImage(img as unknown as CanvasImageSource, (w - dw) / 2, (h - dh) / 2, dw, dh);
   ctx.restore();
-};
-
-// Shape outline as a polyline (layer space, centred on the origin), used for trim paths.
-const outline = (s: ShapeLayer, t: number): {pts: Vec2[]; closed: boolean} => {
-  const [w, h] = val(s.size, t, [200, 200] as Vec2);
-  switch (s.shape) {
-    case 'rect': return {pts: [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]], closed: true};
-    case 'ellipse': return {pts: [...Array(96).keys()].map((i) => { const a = (i / 96) * Math.PI * 2 - Math.PI / 2; return [Math.cos(a) * w / 2, Math.sin(a) * h / 2] as Vec2; }), closed: true};
-    case 'polygon': {
-      const r = val(s.radius, t, 100), n = s.sides ?? 6;
-      return {pts: [...Array(n).keys()].map((i) => { const a = (i / n) * Math.PI * 2 - Math.PI / 2; return [Math.cos(a) * r, Math.sin(a) * r] as Vec2; }), closed: true};
-    }
-    default: return {pts: s.points ?? [], closed: s.closed ?? s.shape === 'path'};
-  }
-};
-
-const drawShape = (ctx: Ctx, s: ShapeLayer, t: number) => {
-  const start = val(s.trim?.start, t, 0) / 100, end = val(s.trim?.end, t, 100) / 100;
-  ctx.beginPath();
-  if (s.trim && (start > 0 || end < 1)) {
-    const {pts, closed} = outline(s, t);
-    const all = closed ? [...pts, pts[0]] : pts;
-    const lens = all.slice(1).map((p, i) => Math.hypot(p[0] - all[i][0], p[1] - all[i][1]));
-    const total = lens.reduce((a, b) => a + b, 0);
-    const a = Math.min(start, end) * total, z = Math.max(start, end) * total;
-    let acc = 0, started = false;
-    for (let i = 0; i < lens.length; i++) {
-      const s0 = acc, s1 = acc + lens[i];
-      acc = s1;
-      if (s1 < a || s0 > z) continue;
-      const p = (d: number): Vec2 => { const k = lens[i] ? (d - s0) / lens[i] : 0; return [all[i][0] + (all[i + 1][0] - all[i][0]) * k, all[i][1] + (all[i + 1][1] - all[i][1]) * k]; };
-      const from = p(Math.max(a, s0)), to = p(Math.min(z, s1));
-      if (!started) { ctx.moveTo(...from); started = true; }
-      ctx.lineTo(...to);
-    }
-  } else if (s.shape === 'rect') {
-    const [w, h] = val(s.size, t, [200, 200] as Vec2);
-    ctx.roundRect(-w / 2, -h / 2, w, h, val(s.radius, t, 0));
-  } else if (s.shape === 'ellipse') {
-    const [w, h] = val(s.size, t, [200, 200] as Vec2);
-    ctx.ellipse(0, 0, Math.abs(w / 2), Math.abs(h / 2), 0, 0, Math.PI * 2);
-  } else {
-    const {pts, closed} = outline(s, t);
-    pts.forEach((p, i) => (i ? ctx.lineTo(...p) : ctx.moveTo(...p)));
-    if (closed) ctx.closePath();
-  }
-  const trimmed = !!s.trim && (start > 0 || end < 1);
-  if (s.fill && !trimmed && s.shape !== 'line') {
-    if (typeof s.fill === 'object' && 'linear' in s.fill) {
-      const g = ctx.createLinearGradient(...s.fill.linear.from, ...s.fill.linear.to);
-      for (const [o, c] of s.fill.linear.stops) g.addColorStop(o, c);
-      ctx.fillStyle = g;
-    } else ctx.fillStyle = val(s.fill as string, t, '#fff');
-    ctx.fill();
-  }
-  if (s.stroke) {
-    ctx.strokeStyle = val(s.stroke, t, '#fff');
-    ctx.lineWidth = val(s.strokeWidth, t, 4);
-    ctx.lineCap = s.lineCap ?? 'round';
-    ctx.lineJoin = 'round';
-    ctx.stroke();
-  }
 };

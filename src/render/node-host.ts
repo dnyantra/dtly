@@ -1,9 +1,11 @@
 // Node host: skia-canvas for drawing, FFmpeg for decoding video frames.
 import {spawn, type ChildProcessWithoutNullStreams} from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {Canvas, FontLibrary, ImageData, loadImage} from 'skia-canvas';
 import {isAnimated, type Effect, type Project, type VideoLayer} from '../core/model.js';
+import {GRADE_TYPES} from './grade.js';
 import type {CanvasLike, Drawable, Host} from './renderer.js';
 
 // CPU rendering by default: deterministic, and the GPU backend can drop draws when a shader
@@ -114,7 +116,8 @@ export class NodeHost implements Host {
   private readers = new Map<string, VideoReader>();
   constructor(private baseDir: string) {}
 
-  resolve(src: string) { return path.resolve(this.baseDir, src); }
+  resolve(src: string) { return src.startsWith('data:') ? src : path.resolve(this.baseDir, src); }
+  data(src: string) { return fs.promises.readFile(this.resolve(src), 'utf8'); }
   createCanvas(w: number, h: number): CanvasLike { return newCanvas(w, h) as unknown as CanvasLike; }
   image(src: string) {
     if (!this.images.has(src)) this.images.set(src, loadImage(this.resolve(src)) as unknown as Promise<Drawable>);
@@ -124,20 +127,27 @@ export class NodeHost implements Host {
     const rate = fps / (layer.speed ?? 1);
     const key = [layer.id, layer.src, w, h, layer.fit, rate].join('|');
     let r = this.readers.get(key);
-    if (!r) this.readers.set(key, (r = new VideoReader(this.resolve(layer.src), w, h, layer.fit ?? 'cover', rate, [...this.bakedVideoEffects(layer)].map(ffmpegFilter))));
+    if (!r) this.readers.set(key, (r = new VideoReader(this.resolve(layer.src), w, h, layer.fit ?? 'cover', rate, [...this.bakedVideoEffects(layer)].map((e) => ffmpegFilter(e, (src) => this.resolve(src))))));
     return r.frame(sourceTime);
   }
   // Static colour/blur effects on video run inside FFmpeg, in parallel with drawing.
   bakedVideoEffects(layer: VideoLayer) {
-    return new Set((layer.effects ?? []).filter((e) => BAKEABLE.has(e.type) && !isAnimated((e as {radius?: unknown; amount?: unknown}).radius ?? (e as {amount?: unknown}).amount)));
+    const effects = layer.effects ?? [];
+    const baked = effects.filter((e) => BAKEABLE.has(e.type) && !isAnimated((e as {radius?: unknown; amount?: unknown}).radius ?? (e as {amount?: unknown}).amount));
+    // A full-strength LUT that is the only grade on the clip runs inside FFmpeg (lut3d), at no extra cost.
+    const grades = effects.filter((e) => GRADE_TYPES.has(e.type));
+    if (grades.length === 1 && grades[0].type === 'lut' && (grades[0].intensity === undefined || grades[0].intensity === 100)) baked.push(grades[0]);
+    return new Set(baked);
   }
   close() { this.readers.forEach((r) => r.close()); this.readers.clear(); }
 }
 
 const BAKEABLE = new Set<Effect['type']>(['blur', 'brightness', 'saturate', 'contrast']);
 // FFmpeg equivalents of the CSS filters the renderer would otherwise apply.
-const ffmpegFilter = (e: Effect) => {
+const escapeFilterPath = (p: string) => p.replace(/\\/g, '/').replace(/([:'\\,\[\];])/g, '\\$1');
+const ffmpegFilter = (e: Effect, resolve: (src: string) => string) => {
   switch (e.type) {
+    case 'lut': return `lut3d=file=${escapeFilterPath(resolve(e.src))}:interp=trilinear`;
     case 'blur': return `gblur=sigma=${Number(e.radius)}`;
     case 'brightness': { const k = Number(e.amount) / 100; return `colorchannelmixer=rr=${k}:gg=${k}:bb=${k}`; }
     case 'saturate': return `eq=saturation=${Number(e.amount) / 100}`;

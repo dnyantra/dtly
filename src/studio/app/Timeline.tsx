@@ -6,7 +6,7 @@ import {findLayer, moveKeyframe, setKeyframe, shiftLayer, updateLayer} from '../
 import {animatedPaths, dragEnd, dragStart, dragUpdate, edit, getPath, getState, setState, snap, useStore} from './store.js';
 
 const LABEL_W = 230;
-const TYPE_COLOR: Record<string, string> = {text: '#e0a84a', shape: '#5fb3a0', solid: '#9b7fd1', image: '#5b9bd5', video: '#d36c6c', audio: '#7fb35f', precomp: '#c78bc0', null: '#888'};
+const TYPE_COLOR: Record<string, string> = {text: '#e0a84a', shape: '#5fb3a0', solid: '#9b7fd1', image: '#5b9bd5', video: '#d36c6c', audio: '#7fb35f', precomp: '#c78bc0', lottie: '#4fc1c9', adjustment: '#b0b0b0', null: '#888'};
 const PROP_LABEL = (path: string) => path.replace(/^transform\./, '').replace(/\.(\d+)\./g, '[$1].');
 
 const ticks = (duration: number, zoom: number) => {

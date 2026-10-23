@@ -211,6 +211,16 @@ const LayerPanel = ({layer, comp}: {layer: Layer; comp: Composition}) => {
         </Section>
       )}
 
+      {layer.type === 'lottie' && (
+        <Section title="Lottie">
+          <Field label="Source"><TextField value={layer.src} onChange={(v) => set(layer, {src: v})} /></Field>
+          <Field label="Loop"><input type="checkbox" checked={layer.loop !== false} onChange={(e) => set(layer, {loop: (e.target as HTMLInputElement).checked ? null : false})} /></Field>
+          {num(layer, 'Speed', 'speed', layer.speed, 1, 0.01)}
+          {num(layer, 'Time offset (s)', 'timeOffset', layer.timeOffset, 0, 0.05)}
+          <Field label="Box size"><JsonEditor value={layer.size ?? null} rows={1} onApply={(v) => set(layer, {size: v})} /></Field>
+        </Section>
+      )}
+
       {layer.type === 'audio' && (
         <Section title="Audio">
           <Field label="Source"><TextField value={layer.src} onChange={(v) => set(layer, {src: v})} /></Field>

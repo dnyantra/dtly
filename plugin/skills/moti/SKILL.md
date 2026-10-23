@@ -123,6 +123,22 @@ generate them per beat so each line fits its scene, and check the spoken words a
   or fix text themselves. Their edits save to the same file — `project_describe` again before your
   next change when they say they adjusted something.
 
+## What you can make (and with which tool)
+
+| The brief asks for | Use |
+|---|---|
+| Logo or icon animation, explainer graphics | `svg_import` (every SVG part becomes an editable shape: recolour, draw-on with `trim`, morph by keyframing `path`), shapes `star`/`polygon`/`path`, `repeater`, gradients |
+| A ready-made animated character or icon | a `lottie` layer (`src` = Lottie .json; `size`, `loop`, `speed`) |
+| Numbers, stats, charts | `element.counter` (₹ and lakh/crore grouping with `locale: en-IN`), `chart.bar`, `chart.line`, `chart.donut`, `chart.progress`; any text can count with `value` + `{value}` |
+| App or website promo | `element.phoneMockup` (screenshot or screen recording in a phone that tilts in 3D), `element.cursor` (pointer/finger with taps); `tilt` and `cornerPin` effects for any flat layer |
+| Energetic cuts, sale / tech look | transitions `glitch`, `rgbWhip`, `warp`, `flash`; effects `glitch`, `rgbSplit`, `wave`; `overlay.lightLeak` |
+| A film look / brand colour grade | an `adjustment` layer with `curves`, `colorBalance` (shadows/midtones/highlights), `exposure`, `temperature`, `vignette`, `lut` (.cube) |
+| Captions for a voiceover or talking video | `captions_add` (SRT/VTT/JSON, or transcribe audio with Sarvam in any Indian language) — current word highlighted |
+| Route, delivery area, "visit us" map | `map_tiles` (real map background from a provider the user chooses) + `map.route` (draw-on route, pins, labels, distance) |
+
+Out of scope on purpose: motion tracking, green screen / VFX, 3D scenes and character rigging.
+If a brief needs them, say so and suggest the closest thing DT.ly does well.
+
 ## 4. Look, then fix
 
 Before rendering, `render_sheet` across every beat **and** mid-transition, and `render_frame` at
@@ -158,12 +174,16 @@ A project is JSON: `comps[]`, each with `width`, `height`, `fps`, `duration`, `b
 | Track matte | `matte: {layer, mode: alpha\|alphaInverted}` |
 | Trim paths | shape `trim: {start, end}` in % — draw-on lines, rings, underlines |
 | Text animators | `animators: [{unit: grapheme\|word\|line, stagger, duration, delay, order, ease, from: {opacity, x, y, scale, rotation, blur, tracking, color}, clip, mode: "out"}]` |
-| Effects | `blur`, `dropShadow`, `glow`, `fill`, `brightness`, `saturate`, `contrast` |
+| Effects | `blur`, `dropShadow`, `glow`, `fill`, `brightness`, `saturate`, `contrast`, `tilt`, `cornerPin`, `rgbSplit`, `glitch`, `wave`, `curves`, `colorBalance`, `exposure`, `temperature`, `vignette`, `lut` |
+| Adjustment layer | `type: "adjustment"` — its effects grade everything below it |
+| Shape paths & morphs | `shape: "path"`, `path: "M… C…"`; keyframe two different paths to morph; `repeater: {copies, position, rotation, scale}` |
+| Counters | text `value` (animatable) + `format: {prefix, suffix, decimals, locale}`; `{value}` in `text` |
 | Motion blur | `motionBlur: {samples, shutter}` |
 | Blending | `blendMode: multiply\|screen\|overlay\|add\|…` |
 
-Layer types: `text`, `shape` (`rect`, `ellipse`, `polygon`, `path`, `line`), `solid`, `image`,
-`video` (`trimIn`, `speed`, `volume`), `audio` (`volume`, `fadeIn`, `fadeOut`), `precomp`, `null`.
+Layer types: `text`, `shape` (`rect`, `ellipse`, `polygon`, `star`, `path`, `line`), `solid`, `image`,
+`video` (`trimIn`, `speed`, `volume`), `audio` (`volume`, `fadeIn`, `fadeOut`), `lottie`, `adjustment`,
+`precomp`, `null`.
 Solids, images, videos and precomps are anchored at their centre; shapes are centred on their
 origin; text is anchored at its alignment point, vertically centred. Position defaults to the
 comp centre.

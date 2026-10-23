@@ -12,12 +12,19 @@ they make.
 
 ![Starter projects](docs/starters.png)
 
+- **Explainers & logos** — SVG import as editable shapes, curved paths, shape morphing, repeaters, stars, gradients, and Lottie animations as layers.
+- **Infographics** — counters (with ₹ and lakh/crore formatting), bar, line, donut and progress charts.
+- **App promos** — phone mockups with true-perspective 3D tilt, corner pin, cursor and tap overlays.
+- **Stylised looks** — glitch, RGB split, wave, light leaks; glitch, RGB-whip, warp and flash transitions.
+- **Colour grading** — curves, colour wheels, exposure, temperature, vignette, 3D LUTs (.cube) and adjustment layers.
+- **Captions** — word-highlight captions from SRT/VTT or automatic transcription (Sarvam AI, Indian languages).
+- **Maps** — animated routes from coordinates with pins, labels and distance, over a stitched map background.
 - **Fine-grained animation** — any property can be keyframed with AE-style eases, bezier curves or physical springs; `wiggle` included.
 - **Text animators** — per grapheme, word or line, with stagger, order, blur, tracking, colour and masked line reveals. Indian scripts (Devanagari etc.) keep their conjuncts while animating.
 - **Presets** — kinetic typography, logo openers, colour-bar openers, slideshows with Ken Burns, push/whip/wipe/zoom transitions, lower thirds, highlight plates. Presets write ordinary layers, so everything stays editable.
 - **Media** — video, image and audio layers, volume keyframes, music mixing.
 - **Studio** — a browser preview and After Effects-style timeline editor that stays in sync with agents.
-- **Agent-native** — 23 MCP tools plus **moti**, a skill that turns your agent into a motion designer.
+- **Agent-native** — 26 MCP tools plus **moti**, a skill that turns your agent into a motion designer.
 - **No browser, no lock-in** — renders with skia-canvas and FFmpeg. MIT licensed.
 
 ## Install
@@ -118,6 +125,9 @@ dtly init <project.json> [--starter opener|kinetic|bars] [--title "Text"]
 dtly render <project.json> <out.mp4> [--from s] [--to s] [--comp id] [--workers n]
 dtly still  <project.json> <time> <out.png> [--scale 0.5]
 dtly sheet  <project.json> <out.png> <t1,t2,...>
+dtly import-svg <project.json> <file.svg> [--width 600] [--at x,y]
+dtly captions <project.json> <audio|video|.srt|.vtt|.json> [--lang mr-IN]
+dtly map-tiles <out.png> --tiles <url> --route "lat,lon;lat,lon" [--attribution "…"]
 dtly studio <project.json> [--port 4400] [--no-open]
 dtly presets
 dtly mcp
@@ -161,7 +171,10 @@ Installing the package also gives you the `dtly` command.
 | Masks / track mattes | `masks: [...]`, `matte: {layer, mode}` |
 | Trim paths | shape `trim: {start, end}` |
 | Text animators | `animators: [{unit, stagger, duration, ease, from: {...}, clip, mode}]` |
-| Effects | `blur`, `dropShadow`, `glow`, `fill`, `brightness`, `saturate`, `contrast` |
+| Effects | `blur`, `dropShadow`, `glow`, `fill`, `brightness`, `saturate`, `contrast`, `tilt`, `cornerPin`, `rgbSplit`, `glitch`, `wave`, `curves`, `colorBalance`, `exposure`, `temperature`, `vignette`, `lut` |
+| Adjustment layer | `type: "adjustment"` |
+| Shape morphing / repeater | keyframe `path`; `repeater` |
+| Footage (Lottie) | `type: "lottie"` |
 | Motion blur | `motionBlur: {samples, shutter}` |
 
 Layer index 0 is the top of the stack, as in After Effects. See
@@ -184,7 +197,7 @@ Opening Claude Code in the repo loads the local MCP server (`.mcp.json`) and the
 - Studio: graph editor, drag-to-reorder layers, multi-select, media import by drag and drop
 - Faster rendering: layer-bounds buffers, caching finished layers
 - Templates with brand kits and media slots for fixed 30/60 s videos
-- More AE features: 3D layers and camera, repeaters, path morphing, LUTs
+- Templates with media slots; audio-reactive animation; beat-synced cuts
 
 ## License
 

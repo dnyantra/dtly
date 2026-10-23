@@ -52,7 +52,10 @@ const readBody = (req: http.IncomingMessage, limit = 20 * 1024 * 1024) =>
 // Only files the project references (plus renders made from the studio) can be served.
 const mediaFiles = (p: Project, baseDir: string, extra: Set<string>) => {
   const files = new Set<string>(extra);
-  for (const c of p.comps) for (const l of c.layers) if ('src' in l && typeof l.src === 'string') files.add(path.resolve(baseDir, l.src));
+  for (const c of p.comps) for (const l of c.layers) {
+    if ('src' in l && typeof l.src === 'string') files.add(path.resolve(baseDir, l.src));
+    for (const e of l.effects ?? []) if ('src' in e && typeof e.src === 'string') files.add(path.resolve(baseDir, e.src));
+  }
   for (const list of Object.values(p.fonts ?? {})) for (const f of list) files.add(path.resolve(baseDir, f));
   return files;
 };
@@ -122,6 +125,11 @@ export const startStudio = async (opts: StudioOptions) => {
         const src = url.searchParams.get('src') ?? '';
         const file = path.resolve(baseDir, src);
         if (!mediaFiles(readProject(projectFile), baseDir, rendered).has(file)) { res.writeHead(403).end('Not a project file'); return; }
+        sendFile(req, res, file);
+      } else if (url.pathname === '/api/svg') {
+        // SVG text for "import as shapes" (only .svg files inside the project folder).
+        const file = path.resolve(baseDir, url.searchParams.get('src') ?? '');
+        if (!file.startsWith(baseDir + path.sep) || path.extname(file).toLowerCase() !== '.svg') { res.writeHead(403).end('Only .svg files inside the project folder'); return; }
         sendFile(req, res, file);
       } else if (url.pathname === '/api/events') {
         res.writeHead(200, {'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive'});

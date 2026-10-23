@@ -1,12 +1,16 @@
 // Preset catalogue: text animators, kinetic typography, openers, slides and transitions.
 // Each preset edits a project through the same ops an agent uses, and returns what it created.
-import type {Ease, NewLayer, Project, Vec2} from '../core/model.js';
+import type {Ease, Effect, NewLayer, Project, Vec2} from '../core/model.js';
 import {addLayer, findLayer, getComp, OpError, setKeyframe, updateLayer} from '../ops/ops.js';
 import {TEXT_ANIMATORS} from './text.js';
+import {CHART_PRESETS} from './charts.js';
+import {APP_PRESETS} from './app.js';
+import {CAPTION_PRESETS} from './captions.js';
+import {MAP_PRESETS} from './maps.js';
 
 type Params = Record<string, unknown>;
 export interface Preset {
-  kind: 'text' | 'kinetic' | 'opener' | 'slides' | 'transition' | 'element';
+  kind: 'text' | 'kinetic' | 'opener' | 'slides' | 'transition' | 'element' | 'chart' | 'overlay' | 'map' | 'captions';
   description: string;
   params: string; // human-readable parameter reference
   apply: (p: Project, comp: string | undefined, params: Params) => {created: string[]; note?: string};
@@ -164,7 +168,7 @@ PRESETS['slides.slideshow'] = {
 PRESETS['transition.between'] = {
   kind: 'transition',
   description: 'Animates two overlapping layers (clips, images or precomps) so one hands over to the other at the overlap.',
-  params: '{from: layerId (outgoing), to: layerId (incoming, must start before `from` ends), type: "push"|"crossfade"|"zoom"|"wipe"|"whip"|"slideUp", duration?: s}',
+  params: '{from: layerId (outgoing), to: layerId (incoming, must start before `from` ends), type: "push"|"crossfade"|"zoom"|"wipe"|"whip"|"slideUp"|"glitch"|"rgbWhip"|"warp"|"flash", duration?: s}',
   apply: (p, compId, o) => {
     const a = findLayer(p, str(o.from, '')), b = findLayer(p, str(o.to, ''));
     const comp = a.comp;
@@ -197,11 +201,63 @@ PRESETS['transition.between'] = {
         pos(b.layer.id, [t1, [W * 1.5, H / 2], 'expoOut'], [t2, center]);
         for (const id of [a.layer.id, b.layer.id]) updateLayer(p, id, {motionBlur: {samples: 12, shutter: 360}});
         break;
+      case 'glitch': {
+        // Hard cut in the middle of a burst of digital glitching.
+        const mid = r3(t1 + d / 2);
+        addFx(p, a.layer.id, {type: 'glitch', amount: kf([t1, 0], [mid, 100])});
+        addFx(p, b.layer.id, {type: 'glitch', amount: kf([mid, 100], [t2, 0])});
+        setKeyframe(p, b.layer.id, 'transform.opacity', t1, 0, 'hold'); setKeyframe(p, b.layer.id, 'transform.opacity', mid, 100);
+        break;
+      }
+      case 'rgbWhip':
+        pos(a.layer.id, [t1, center, 'expoIn'], [t2, [-W / 2, H / 2]]);
+        pos(b.layer.id, [t1, [W * 1.5, H / 2], 'expoOut'], [t2, center]);
+        for (const id of [a.layer.id, b.layer.id]) { updateLayer(p, id, {motionBlur: {samples: 10, shutter: 270}}); addFx(p, id, {type: 'rgbSplit', amount: kf([t1, 0, 'easeIn'], [r3(t1 + d / 2), 40, 'easeOut'], [t2, 0])}); }
+        break;
+      case 'warp': {
+        const mid = r3(t1 + d / 2);
+        addFx(p, a.layer.id, {type: 'wave', amplitude: kf([t1, 0, 'easeIn'], [t2, 80]), wavelength: 260, speed: 2});
+        addFx(p, b.layer.id, {type: 'wave', amplitude: kf([t1, 80, 'easeOut'], [t2, 0]), wavelength: 260, speed: 2});
+        setKeyframe(p, b.layer.id, 'transform.opacity', t1, 0, 'easyEase'); setKeyframe(p, b.layer.id, 'transform.opacity', mid, 100);
+        break;
+      }
+      case 'flash':
+        setKeyframe(p, b.layer.id, 'transform.opacity', t1, 0, 'hold'); setKeyframe(p, b.layer.id, 'transform.opacity', r3(t1 + d / 2), 100);
+        PRESETS['overlay.lightLeak'].apply(p, comp.id, {start: t1 - d * 0.2, duration: d * 1.6, intensity: 100});
+        break;
       default: // push
         pos(a.layer.id, [t1, center, 'expoInOut'], [t2, [-W / 2, H / 2]]);
         pos(b.layer.id, [t1, [W * 1.5, H / 2], 'expoInOut'], [t2, center]);
     }
     return {created: [], note: `${type} from ${a.layer.id} to ${b.layer.id} at ${t1}s–${t2}s`};
+  },
+};
+
+const addFx = (p: Project, id: string, e: Effect) => {
+  const {layer} = findLayer(p, id);
+  layer.effects = [...(layer.effects ?? []), e];
+};
+
+PRESETS['overlay.lightLeak'] = {
+  kind: 'overlay',
+  description: 'Warm film light leak: soft glowing colour blobs drift across the frame (screen blend) — on cuts, openers or to add warmth.',
+  params: '{start?: s, duration?: s (default 1.2), colors?: string[], intensity?: 0-100 (default 80), direction?: "left"|"right"}',
+  apply: (p, compId, o) => {
+    const comp = getComp(p, compId);
+    const t0 = Math.max(0, num(o.start, 0)), d = num(o.duration, 1.2), peak = num(o.intensity, 80);
+    const colors = (o.colors as string[]) ?? ['#ff8a3d', '#ffd166', '#ff4f6d'];
+    const dir = o.direction === 'left' ? -1 : 1, W = comp.width, H = comp.height;
+    const created: string[] = [];
+    colors.forEach((c, i) => {
+      const r = Math.max(W, H) * (0.55 + i * 0.12);
+      const y = H * (0.25 + 0.3 * i);
+      created.push(addLayer(p, comp.id, {type: 'shape', name: `light-leak-${i + 1}`, shape: 'ellipse', size: [r * 2, r * 2], blendMode: 'screen',
+        fill: {radial: {center: [0, 0], radius: r, stops: [[0, `${c}ee`], [0.45, `${c}66`], [1, `${c}00`]]}},
+        inPoint: r3(t0), outPoint: r3(t0 + d),
+        transform: {position: kf<Vec2>([t0, [W / 2 - dir * W * (0.8 + i * 0.2), y], 'easyEase'], [t0 + d, [W / 2 + dir * W * (0.6 + i * 0.15), y + H * 0.1]]),
+          opacity: kf([t0, 0, 'easeOut'], [t0 + d * 0.4, peak, 'easeIn'], [t0 + d, 0])}} as NewLayer, 0).id);
+    });
+    return {created};
   },
 };
 
@@ -240,6 +296,8 @@ PRESETS['element.highlightWord'] = {
     return {created: []};
   },
 };
+
+Object.assign(PRESETS, CHART_PRESETS, APP_PRESETS, CAPTION_PRESETS, MAP_PRESETS);
 
 export const listPresets = () =>
   Object.entries(PRESETS).map(([name, p]) => `${name} [${p.kind}] — ${p.description}\n    params: ${p.params}`).join('\n');

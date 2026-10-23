@@ -2,7 +2,7 @@
 import {render} from 'preact';
 import {useEffect, useState} from 'preact/hooks';
 import type {NewLayer} from '../../core/model.js';
-import {addComp, addLayer, removeKeyframe, removeLayer, shiftLayer, duplicateLayer, updateLayer} from '../../ops/ops.js';
+import {addComp, addLayer, addSvg, removeKeyframe, removeLayer, shiftLayer, duplicateLayer, updateLayer} from '../../ops/ops.js';
 import {PRESETS} from '../../presets/index.js';
 import {config} from './config.js';
 import {AudioPreview, loadFonts} from './host.js';
@@ -60,11 +60,27 @@ const ADD: Record<string, () => void> = {
   Shape: () => addAndSelect({type: 'shape', name: 'Shape', shape: 'ellipse', size: [300, 300], fill: '#E8692A'} as NewLayer),
   Solid: () => addAndSelect({type: 'solid', name: 'Solid', color: '#1f2933'} as NewLayer),
   Null: () => addAndSelect({type: 'null', name: 'Null'} as NewLayer),
+  'Adjustment layer (grade)': () => addAndSelect({type: 'adjustment', name: 'Grade', effects: [{type: 'curves', master: [[0, 0], [0.25, 0.2], [0.75, 0.82], [1, 1]]}, {type: 'vignette', amount: 40}]} as NewLayer),
   'Image / video / audio…': () => {
     const src = prompt('Path to the file, relative to the project file:');
     if (!src) return;
     const type = /\.(mp4|mov|webm|m4v)$/i.test(src) ? 'video' : /\.(mp3|wav|m4a|aac|ogg)$/i.test(src) ? 'audio' : 'image';
     addAndSelect({type, name: src.split('/').pop(), src} as NewLayer);
+  },
+  'Lottie animation…': () => {
+    const src = prompt('Path to the Lottie .json file, relative to the project file:');
+    if (src) addAndSelect({type: 'lottie', name: src.split('/').pop()!.replace(/\.json$/i, ''), src} as NewLayer);
+  },
+  'SVG as editable shapes…': async () => {
+    const src = prompt('Path to the .svg file, relative to the project file:');
+    if (!src) return;
+    const r = await fetch(`/api/svg?src=${encodeURIComponent(src)}&token=${config.token}`);
+    if (!r.ok) { setState({message: await r.text()}); return; }
+    const svg = await r.text();
+    const comp = currentComp()!;
+    let group = '';
+    edit((p) => { group = addSvg(p, comp.id, svg, {name: src.split('/').pop()!.replace(/\.svg$/i, ''), width: Math.round(comp.width * 0.5), position: [comp.width / 2, comp.height / 2], inPoint: snap(getState().time, comp.fps)}).group; });
+    if (group) setState({layer: group, key: null});
   },
   'New comp (precomp)…': () => {
     const id = prompt('Id for the new composition:');
@@ -92,7 +108,7 @@ const PresetDialog = ({onClose}: {onClose: () => void}) => {
   };
   const [params, setParams] = useState(JSON.stringify(defaults(name), null, 2));
   const [error, setError] = useState('');
-  const groups = ['text', 'kinetic', 'opener', 'slides', 'transition', 'element'];
+  const groups = ['text', 'kinetic', 'opener', 'slides', 'transition', 'element', 'chart', 'overlay', 'map', 'captions'];
   return (
     <div class="modal" onClick={onClose}>
       <div class="dialog" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>

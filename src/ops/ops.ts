@@ -1,6 +1,7 @@
 // Document operations: the fine-grained edits agents (via MCP) and tools make to a project.
 // Every op is a pure-ish mutation of a Project object; IO lives in ./store.ts.
 import {isAnimated, type Composition, type Ease, type Keyframe, type Layer, type NewLayer, type Project} from '../core/model.js';
+import {importSvg, type SvgImportOptions} from '../core/svg.js';
 
 export class OpError extends Error {}
 
@@ -189,6 +190,16 @@ export const setEase = (p: Project, layerId: string, path: string, t: number, ea
   k.ease = ease;
 };
 
+// Adds an SVG as a group (null layer) of editable shape layers parented to it.
+export const addSvg = (p: Project, compId: string | undefined, svg: string, opts: SvgImportOptions = {}) => {
+  const {layers, size, parts} = importSvg(svg, opts);
+  const [group, ...shapes] = layers;
+  const g = addLayer(p, compId, group, 0);
+  // Insert the parts below the group's position so their stacking matches the SVG.
+  const ids = shapes.reverse().map((l) => addLayer(p, compId, {...l, parent: g.id} as NewLayer, 1).id);
+  return {group: g.id, parts, size, ids};
+};
+
 // Static checks an agent should run before rendering.
 export const validate = (p: Project): string[] => {
   const warnings: string[] = [];
@@ -230,7 +241,7 @@ export const describe = (p: Project): string => {
       walk(l, '');
       const extra =
         l.type === 'text' ? ` "${l.text.replace(/\n/g, ' / ').slice(0, 60)}"${l.animators?.length ? ` animators:${l.animators.map((a) => a.unit).join('+')}` : ''}`
-        : l.type === 'video' || l.type === 'image' || l.type === 'audio' ? ` ${l.src}`
+        : l.type === 'video' || l.type === 'image' || l.type === 'audio' || l.type === 'lottie' ? ` ${l.src}`
         : l.type === 'precomp' ? ` → ${l.comp}`
         : l.type === 'shape' ? ` ${l.shape}` : '';
       lines.push(`  [${i}] ${l.id} (${l.type})${extra} ${l.inPoint ?? 0}–${l.outPoint ?? c.duration}s${l.parent ? ` parent:${l.parent}` : ''}${l.matte ? ` matte:${l.matte.layer}` : ''}${l.hidden ? ' hidden' : ''}${animated.length ? `\n      animated: ${animated.join('  ')}` : ''}`);

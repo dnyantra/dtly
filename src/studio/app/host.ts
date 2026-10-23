@@ -4,7 +4,7 @@ import type {AudioLayer, Composition, Project, VideoLayer} from '../../core/mode
 import type {CanvasLike, Drawable, Host} from '../../render/renderer.js';
 import {config} from './config.js';
 
-export const mediaUrl = (src: string) => `/api/media?src=${encodeURIComponent(src)}&token=${config.token}`;
+export const mediaUrl = (src: string) => (src.startsWith('data:') ? src : `/api/media?src=${encodeURIComponent(src)}&token=${config.token}`);
 
 const waitFor = (el: HTMLMediaElement, event: string, ms = 2000) =>
   new Promise<void>((resolve) => {
@@ -27,6 +27,12 @@ export class BrowserHost implements Host {
     c.width = w;
     c.height = h;
     return c as unknown as CanvasLike;
+  }
+
+  async data(src: string) {
+    const r = await fetch(mediaUrl(src));
+    if (!r.ok) throw new Error(`Could not load ${src}`);
+    return r.text();
   }
 
   image(src: string) {

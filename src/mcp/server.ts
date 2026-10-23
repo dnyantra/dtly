@@ -84,7 +84,7 @@ server.registerTool('comp_update', {
 })());
 
 server.registerTool('layer_add', {
-  description: `Add a layer. \`layer\` is the layer JSON without needing an id: {type: "text"|"shape"|"solid"|"image"|"video"|"audio"|"precomp"|"null", name?, inPoint?, outPoint?, transform?: {anchor,position,scale(%),rotation(deg),opacity(%),skew}, effects?, masks?, matte?, parent?, blendMode?, motionBlur?, ...type props}. Text: text,size,weight,color,font,align,maxWidth,lineHeight,tracking,stroke,shadow,box,animators. Shape: shape(rect|ellipse|polygon|path|line),size,radius,points,fill,stroke,strokeWidth,trim{start,end}. Video: src,trimIn,speed,volume,fit. Any numeric/vector/colour property can be {keyframes:[{t,v,ease}]}. index 0 = top of the stack.`,
+  description: `Add a layer. \`layer\` is the layer JSON without needing an id: {type: "text"|"shape"|"solid"|"image"|"video"|"audio"|"lottie"|"adjustment"|"precomp"|"null", name?, inPoint?, outPoint?, transform?: {anchor,position,scale(%),rotation(deg),opacity(%),skew}, effects?, masks?, matte?, parent?, blendMode?, motionBlur?, ...type props}. Text: text,size,weight,color,font,align,maxWidth,lineHeight,tracking,stroke,shadow,box,animators. Shape: shape(rect|ellipse|polygon|star|path|line),size,radius,innerRadius,sides,path (SVG d; keyframe different paths to morph),fill (colour or {linear|radial gradient}),stroke,strokeWidth,dash,trim{start,end,offset},repeater{copies,position,rotation,scale,startOpacity,endOpacity}. Video: src,trimIn,speed,volume,fit. Lottie: src (.json), size, loop, speed, timeOffset, frames. Any numeric/vector/colour property can be {keyframes:[{t,v,ease}]}. index 0 = top of the stack.`,
   inputSchema: {project: projectArg, comp: z.string().optional().describe('Comp id, default root'), layer: z.record(z.string(), z.any()), index: z.number().optional()},
 }, (a) => run(() => {
   const l = editProject(a.project, (p) => ops.addLayer(p, a.comp, a.layer as NewLayer, a.index ?? 0));
@@ -143,6 +143,36 @@ server.registerTool('keyframe_ease', {
   description: 'Change the ease of the segment leaving the keyframe at `time` (AE: Keyframe Assistant / speed graph).',
   inputSchema: {project: projectArg, layer: z.string(), property: z.string(), time: z.number(), ease: easeArg},
 }, (a) => run(() => { editProject(a.project, (p) => ops.setEase(p, a.layer, a.property, a.time, (a.ease ?? 'linear') as Ease)); return `Ease set`; })());
+
+server.registerTool('svg_import', {
+  description: 'Add an SVG file (logo, icon, illustration) as editable shape layers grouped under a null layer: every path keeps its fill, stroke and gradient, and can be recoloured, trimmed (draw-on), morphed or animated. Animate the returned group to move the whole graphic.',
+  inputSchema: {project: projectArg, file: z.string().describe('SVG path, absolute or relative to the project file'), comp: z.string().optional(), width: z.number().optional().describe('Width in px (default 600)'), position: z.tuple([z.number(), z.number()]).optional(), name: z.string().optional(), color: z.string().optional().describe('Colour for currentColor (icon sets)'), inPoint: z.number().optional()},
+}, (a) => run(() => {
+  const file = path.resolve(path.dirname(path.resolve(a.project)), a.file);
+  const r = editProject(a.project, (p) => ops.addSvg(p, a.comp, fs.readFileSync(file, 'utf8'), {name: a.name ?? path.basename(file, '.svg'), width: a.width, position: a.position as [number, number] | undefined, color: a.color, inPoint: a.inPoint}));
+  return `Added group "${r.group}" (${Math.round(r.size[0])}×${Math.round(r.size[1])} px) with ${r.parts} parts: ${r.ids.join(', ')}`;
+})());
+
+server.registerTool('captions_add', {
+  description: 'Add captions with the current word highlighted. Source: an .srt/.vtt/.json file, or an audio/video file transcribed with Sarvam AI (any Indian language or English; needs SARVAM_API_KEY in the environment). Each caption page becomes an editable text layer.',
+  inputSchema: {project: projectArg, source: z.string().describe('Path (relative to the project) to .srt/.vtt/.json or an audio/video file'), language: z.string().optional().describe('BCP-47, e.g. mr-IN, hi-IN, en-IN (default auto)'), comp: z.string().optional(), maxWords: z.number().optional(), position: z.tuple([z.number(), z.number()]).optional(), size: z.number().optional(), highlight: z.string().optional(), box: z.string().optional(), plate: z.string().optional(), mode: z.enum(['current', 'spoken']).optional(), uppercase: z.boolean().optional(), offset: z.number().optional(), style: z.enum(['pop', 'fade', 'none']).optional()},
+}, (a) => run(async () => {
+  const {loadCaptions} = await import('../render/transcribe.js');
+  const {project, source, language, comp, ...style} = a;
+  const src = await loadCaptions(path.resolve(path.dirname(path.resolve(project)), source), language);
+  const r = editProject(project, (p) => PRESETS['captions.add'].apply(p, comp, {...src, ...style}));
+  return `Added ${r.created.length} caption layers (${r.note ?? ''}): ${r.created.slice(0, 6).join(', ')}${r.created.length > 6 ? '…' : ''}`;
+})());
+
+server.registerTool('map_tiles', {
+  description: 'Stitch a real map background image from a slippy-map tile provider (URL template with {z}/{x}/{y}) for a route or bounds, and return its bounds for preset map.route ({background: {src, bounds}}). The user must pick the provider and follow its licence and attribution rules (e.g. MapTiler/Mapbox with their key; OpenStreetMap tiles only for light use with "© OpenStreetMap contributors").',
+  inputSchema: {project: projectArg, out: z.string().describe('Output .png path, relative to the project'), tiles: z.string(), route: z.array(z.tuple([z.number(), z.number()])).optional(), bounds: z.tuple([z.tuple([z.number(), z.number()]), z.tuple([z.number(), z.number()])]).optional(), size: z.tuple([z.number(), z.number()]).optional(), attribution: z.string().optional()},
+}, (a) => run(async () => {
+  const {stitchMap} = await import('../render/tiles.js');
+  const dir = path.dirname(path.resolve(a.project));
+  const view = await stitchMap(path.resolve(dir, a.out), {tiles: a.tiles, route: a.route as [number, number][] | undefined, bounds: a.bounds as never, size: (a.size as [number, number]) ?? [1080, 1920], attribution: a.attribution});
+  return `Saved ${a.out}. Background for map.route: ${JSON.stringify({src: a.out, bounds: view.bounds})}`;
+})());
 
 server.registerTool('preset_list', {
   annotations: READ_ONLY,

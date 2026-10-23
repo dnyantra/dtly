@@ -1,5 +1,13 @@
 import {applyEase} from './ease.js';
 import {parseColor, rgbaString} from './color.js';
+import {morph, parsePath, pathToString, type Path} from './path.js';
+
+const pathCache = new Map<string, Path>();
+const parsed = (d: string) => {
+  let p = pathCache.get(d);
+  if (!p) { p = parsePath(d); if (pathCache.size > 200) pathCache.clear(); pathCache.set(d, p); }
+  return p;
+};
 import {isAnimated, type Keyframe, type Prop, type Wiggle} from './model.js';
 
 const lerp = (a: number, b: number, p: number) => a + (b - a) * p;
@@ -10,6 +18,12 @@ const interpolate = (a: unknown, b: unknown, p: number): unknown => {
   if (typeof a === 'string' && typeof b === 'string') {
     const ca = parseColor(a), cb = parseColor(b);
     if (ca && cb) return rgbaString(ca.map((v, i) => lerp(v, cb[i], p)) as [number, number, number, number]);
+    // Two SVG paths: morph between them.
+    if (/^\s*[Mm]/.test(a) && /^\s*[Mm]/.test(b)) {
+      if (p <= 0) return a;
+      if (p >= 1) return b;
+      return pathToString(morph(parsed(a), parsed(b), p));
+    }
   }
   return p < 1 ? a : b;
 };

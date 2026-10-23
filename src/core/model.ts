@@ -33,13 +33,29 @@ export type Effect =
   | {type: 'fill'; color: Color; opacity?: Prop<number>}
   | {type: 'brightness'; amount: Prop<number>} // percent, 100 = unchanged
   | {type: 'saturate'; amount: Prop<number>}
-  | {type: 'contrast'; amount: Prop<number>};
+  | {type: 'contrast'; amount: Prop<number>}
+  // True perspective: the layer's corners (top-left, top-right, bottom-right, bottom-left, layer space).
+  | {type: 'cornerPin'; corners: Prop<[Vec2, Vec2, Vec2, Vec2]>}
+  // 3D tilt of a flat layer about its centre (device mockups, cards); degrees, perspective in px.
+  | {type: 'tilt'; rotateX?: Prop<number>; rotateY?: Prop<number>; rotateZ?: Prop<number>; perspective?: number}
+  // Stylised: chromatic aberration, digital glitch slices, wavy warp.
+  | {type: 'rgbSplit'; amount: Prop<number>; angle?: number}
+  | {type: 'glitch'; amount: Prop<number>; seed?: number; hold?: number; rgb?: boolean}
+  | {type: 'wave'; amplitude: Prop<number>; wavelength?: number; speed?: number; direction?: 'horizontal' | 'vertical'}
+  // Colour grading. Curves points are [in, out] pairs in 0..1.
+  | {type: 'curves'; master?: [number, number][]; r?: [number, number][]; g?: [number, number][]; b?: [number, number][]}
+  | {type: 'colorBalance'; shadows?: [number, number, number]; midtones?: [number, number, number]; highlights?: [number, number, number]} // each -1..1
+  | {type: 'exposure'; stops: Prop<number>}
+  | {type: 'temperature'; amount: Prop<number>} // -100 cool … +100 warm
+  | {type: 'lut'; src: string; intensity?: Prop<number>} // .cube 3D LUT
+  | {type: 'vignette'; amount: Prop<number>; softness?: number; color?: Color};
 
 export interface Mask {
   shape: 'rect' | 'ellipse' | 'path';
   // rect/ellipse: [x, y, w, h] in layer space; path: list of points
   rect?: Prop<[number, number, number, number]>;
   points?: Vec2[];
+  path?: Prop<string>; // SVG path data for shape "path" (animatable, morphs)
   radius?: number;
   inverted?: boolean;
 }
@@ -80,19 +96,41 @@ interface LayerBase {
 
 export interface SolidLayer extends LayerBase { type: 'solid'; color: Prop<Color>; size?: Vec2 }
 export interface NullLayer extends LayerBase { type: 'null' }
+export type Gradient =
+  | {linear: {from: Vec2; to: Vec2; stops: [number, Color][]}}
+  | {radial: {center: Vec2; radius: number; stops: [number, Color][]}};
+
+// AE-style repeater: draws `copies` of the shape, each offset by the transform below.
+export interface Repeater {
+  copies: Prop<number>;
+  offset?: number;
+  position?: Vec2; // per copy
+  rotation?: number; // degrees per copy
+  scale?: Vec2; // percent per copy, e.g. [90, 90]
+  anchor?: Vec2;
+  startOpacity?: number; // percent, first copy
+  endOpacity?: number; // percent, last copy
+}
+
 export interface ShapeLayer extends LayerBase {
   type: 'shape';
-  shape: 'rect' | 'ellipse' | 'polygon' | 'path' | 'line';
+  shape: 'rect' | 'ellipse' | 'polygon' | 'star' | 'path' | 'line';
   size?: Prop<Vec2>; // rect/ellipse
-  radius?: Prop<number>; // rect corner radius / polygon radius
-  sides?: number; // polygon
-  points?: Vec2[]; // path/line
+  radius?: Prop<number>; // rect corner radius / polygon & star outer radius
+  innerRadius?: Prop<number>; // star
+  sides?: number; // polygon / star points
+  path?: Prop<string>; // SVG path data; keyframing different paths morphs between them
+  points?: Vec2[]; // simple polyline alternative to `path`
   closed?: boolean;
-  fill?: Prop<Color> | {linear: {from: Vec2; to: Vec2; stops: [number, Color][]}};
+  fill?: Prop<Color> | Gradient;
+  fillRule?: 'nonzero' | 'evenodd';
   stroke?: Prop<Color>;
   strokeWidth?: Prop<number>;
   lineCap?: 'butt' | 'round' | 'square';
-  trim?: {start?: Prop<number>; end?: Prop<number>}; // percent of path length, for draw-on lines
+  lineJoin?: 'miter' | 'round' | 'bevel';
+  dash?: number[];
+  trim?: {start?: Prop<number>; end?: Prop<number>; offset?: Prop<number>}; // percent of path length
+  repeater?: Repeater;
 }
 export interface TextLayer extends LayerBase {
   type: 'text';
@@ -108,6 +146,11 @@ export interface TextLayer extends LayerBase {
   stroke?: {color: Color; width: number};
   shadow?: {color: Color; blur: number; x?: number; y?: number};
   box?: {color: Prop<Color>; padding?: [number, number]; radius?: number; reveal?: Prop<number>}; // background plate; reveal 0-100 wipes it in
+  // Counters: `{value}` in `text` shows this number (animate it to count), formatted below.
+  value?: Prop<number>;
+  format?: {decimals?: number; prefix?: string; suffix?: string; locale?: string; grouping?: boolean};
+  // Word-by-word highlight (captions): one [start, end] per word of `text`, in comp seconds.
+  karaoke?: {words: [number, number][]; color?: Color; mode?: 'current' | 'spoken'; scale?: number; box?: Color};
   animators?: TextAnimator[];
 }
 export interface ImageLayer extends LayerBase { type: 'image'; src: string; size?: Vec2; fit?: 'cover' | 'contain' | 'fill' }
@@ -128,9 +171,21 @@ export interface AudioLayer extends LayerBase {
   fadeIn?: number;
   fadeOut?: number;
 }
+// A Lottie (Bodymovin JSON) animation played as a layer. `size` is the box it fits into (contain).
+export interface LottieLayer extends LayerBase {
+  type: 'lottie';
+  src: string;
+  size?: Vec2;
+  loop?: boolean; // default true
+  speed?: number;
+  timeOffset?: number; // seconds into the animation at the layer's inPoint
+  frames?: [number, number]; // play only this Lottie frame range
+}
+// Adjustment layer: its effects apply to everything below it in the comp (within its in/out and masks).
+export interface AdjustmentLayer extends LayerBase { type: 'adjustment' }
 export interface PrecompLayer extends LayerBase { type: 'precomp'; comp: string; timeOffset?: number; speed?: number }
 
-export type Layer = SolidLayer | NullLayer | ShapeLayer | TextLayer | ImageLayer | VideoLayer | AudioLayer | PrecompLayer;
+export type Layer = SolidLayer | NullLayer | ShapeLayer | TextLayer | ImageLayer | VideoLayer | AudioLayer | PrecompLayer | LottieLayer | AdjustmentLayer;
 export type LayerType = Layer['type'];
 // A layer before it has an id (Omit distributed over the union).
 export type NewLayer = Layer extends infer L ? (L extends Layer ? Omit<L, 'id'> & {id?: string} : never) : never;

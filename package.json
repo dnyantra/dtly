@@ -1,6 +1,6 @@
 {
   "name": "@dnyantra/dtly",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "DT.ly — After Effects-style motion graphics as JSON, rendered to MP4, with an MCP server for AI agents. From the creator of CustomerPro.in.",
   "keywords": [
     "motion-graphics",

@@ -152,8 +152,26 @@ const roundRect = (ctx: Ctx, x: number, y: number, w: number, h: number, r: numb
   ctx.roundRect(x, y, w, h, r);
 };
 
+const formatters = new Map<string, Intl.NumberFormat>();
+// Number shown by a counter, e.g. 1234567 → "12,34,567" (en-IN) or "1,234,567" (en-US).
+export const formatValue = (v: number, f: TextLayer['format'] = {}) => {
+  const decimals = f.decimals ?? 0;
+  const key = `${f.locale ?? 'en-IN'}|${decimals}|${f.grouping !== false}`;
+  let fmt = formatters.get(key);
+  if (!fmt) formatters.set(key, (fmt = new Intl.NumberFormat(f.locale ?? 'en-IN', {minimumFractionDigits: decimals, maximumFractionDigits: decimals, useGrouping: f.grouping !== false})));
+  return `${f.prefix ?? ''}${fmt.format(v)}${f.suffix ?? ''}`;
+};
+
+// The text a layer shows at time t (counters substitute their animated value).
+export const displayText = (layer: TextLayer, t: number) => {
+  if (layer.value === undefined) return layer.text;
+  const v = formatValue(val(layer.value, t, 0), layer.format);
+  return layer.text.includes('{value}') ? layer.text.replace(/\{value\}/g, v) : v;
+};
+
 // Draws a text layer in its own layer space (origin = alignment point, vertically centred).
-export const drawText = (ctx: Ctx, layer: TextLayer, t: number, inPoint: number, outPoint: number, fallbackFamily: string) => {
+export const drawText = (ctx: Ctx, source: TextLayer, t: number, inPoint: number, outPoint: number, fallbackFamily: string) => {
+  const layer = source.value === undefined ? source : {...source, text: displayText(source, t)};
   const size = val(layer.size, t, 72);
   const tracking = val(layer.tracking, t, 0);
   const color = val(layer.color, t, '#ffffff');
@@ -198,13 +216,24 @@ export const drawText = (ctx: Ctx, layer: TextLayer, t: number, inPoint: number,
   };
 
   const animators = layer.animators ?? [];
-  if (animators.length === 0) {
+  const kara = layer.karaoke;
+  if (animators.length === 0 && !kara) {
     for (const l of L.lines) paint(l.text, l.x, l.y, color);
     return;
   }
+  // Highlight state per word (captions): current word (or every word spoken so far) changes colour and pops.
+  const wordState = (w: number) => {
+    if (!kara) return null;
+    const span = kara.words[w];
+    if (!span) return null;
+    const on = kara.mode === 'spoken' ? t >= span[0] : t >= span[0] && t < span[1];
+    if (!on) return null;
+    const k = Math.min(1, (t - span[0]) / 0.12);
+    return {color: kara.color ?? '#FFC93C', scale: 1 + ((kara.scale ?? 100) / 100 - 1) * (kara.mode === 'spoken' ? 0 : 1 - (1 - k) * (1 - k)), box: kara.box};
+  };
 
   // Draw at the finest unit any animator needs; coarser units keep whole-word shaping.
-  const finest = animators.some((a) => a.unit === 'grapheme') ? 'grapheme' : animators.some((a) => a.unit === 'word') ? 'word' : 'line';
+  const finest = animators.some((a) => a.unit === 'grapheme') ? 'grapheme' : animators.some((a) => a.unit === 'word') || kara ? 'word' : 'line';
   const units: Unit[] = finest === 'grapheme' ? L.graphemes : finest === 'word' ? L.words : L.lines.map((l, i) => ({...l, line: i, word: 0, grapheme: 0}));
   const counts = {grapheme: L.graphemes.length, word: L.words.length, line: L.lines.length};
   const lt = t - inPoint, dur = outPoint - inPoint;
@@ -219,6 +248,8 @@ export const drawText = (ctx: Ctx, layer: TextLayer, t: number, inPoint: number,
     lineIdx.set(u.line, idxInLine + 1);
     const st = unitState(animators, {grapheme: u.grapheme, word: u.word, line: u.line}, counts, lt, dur, color);
     if (st.opacity <= 0.001) continue;
+    const hl = finest === 'word' ? wordState(u.word) : null;
+    if (hl) { st.color = hl.color; st.scale *= hl.scale; }
     ctx.save();
     if (clip) {
       ctx.beginPath();
@@ -233,6 +264,15 @@ export const drawText = (ctx: Ctx, layer: TextLayer, t: number, inPoint: number,
     if (st.scale !== 1) ctx.scale(st.scale, st.scale);
     ctx.globalAlpha *= st.opacity;
     if (st.blur > 0.1) ctx.filter = `blur(${st.blur.toFixed(2)}px)`;
+    if (hl?.box) {
+      ctx.save();
+      ctx.shadowColor = 'transparent';
+      ctx.fillStyle = hl.box;
+      ctx.beginPath();
+      ctx.roundRect(-u.w / 2 - size * 0.12, -size * 0.62, u.w + size * 0.24, size * 1.2, size * 0.18);
+      ctx.fill();
+      ctx.restore();
+    }
     paint(u.text, -u.w / 2, size * 0.35, st.color ?? color);
     ctx.restore();
   }
