@@ -1,0 +1,41 @@
+{
+  "name": "customerpro-video",
+  "productName": "CustomerPro Video",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CustomerPro Video: the desktop video studio for CustomerPro (Electron shell around DT.ly).",
+  "author": "CustomerPro",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "dist/main/main.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "npm run build && electron .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:engine-electron": "npm run build && node scripts/electron-engine-test.mjs",
+    "smoke": "npm run build && node scripts/smoke.mjs",
+    "ffmpeg:fetch": "node scripts/fetch-ffmpeg.mjs",
+    "dist:mac": "npm run build && node scripts/stage.mjs && electron-builder --mac --config electron-builder.config.cjs --publish never",
+    "dist:win": "npm run build && node scripts/stage.mjs --platform win32 --arch x64 && electron-builder --win --x64 --config electron-builder.config.cjs --publish never"
+  },
+  "dependencies": {
+    "@dnyantra/dtly": "file:../..",
+    "electron-updater": "^6.8.11",
+    "pdfjs-dist": "6.4.299"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-agent-core": "1.4.0",
+    "@earendil-works/pi-ai": "1.4.0",
+    "@types/node": "^26.6.6",
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2",
+    "preact": "^11.2.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.12"
+  }
+}

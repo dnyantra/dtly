@@ -1,7 +1,7 @@
 // Editor state: one project, history, autosave and live reload from disk.
 import {useEffect, useState} from 'preact/hooks';
 import {isAnimated, type Keyframe, type Layer, type Project} from '../../core/model.js';
-import {config} from './config.js';
+import {apiUrl, config, notifyParent} from './config.js';
 
 export interface KeySel { layer: string; path: string; t: number }
 export interface State {
@@ -15,7 +15,7 @@ export interface State {
   key: KeySel | null;
   expanded: Record<string, boolean>;
   zoom: number; // timeline px per second
-  status: 'loading' | 'saved' | 'saving' | 'error' | 'reloaded';
+  status: 'loading' | 'saved' | 'saving' | 'error' | 'reloaded' | 'conflict' | 'readonly';
   message: string;
   warnings: string[];
   render: {active: boolean; done?: number; total?: number; out?: string; error?: string};
@@ -42,7 +42,7 @@ export const useStore = <T,>(select: (s: State) => T): T => {
 };
 
 const api = (path: string, init: RequestInit = {}) =>
-  fetch(path, {...init, headers: {'Content-Type': 'application/json', 'X-DTLY-Token': config.token, ...(init.headers ?? {})}});
+  fetch(apiUrl(path), {...init, headers: {'Content-Type': 'application/json', 'X-DTLY-Token': config.token, ...(init.headers ?? {})}});
 
 // --- history -----------------------------------------------------------------------------
 const undoStack: string[] = [];
@@ -50,26 +50,45 @@ const redoStack: string[] = [];
 const MAX_HISTORY = 200;
 
 let saveTimer: number | undefined;
+let dirty = false; // an edit since the last save (tells the embedding page once)
+let conflicted = false; // the stored project moved on; no autosave until reloaded
+let inFlight = false; // a PUT is on its way; a rev bump seen meanwhile may be our own save
+let saveAgain = false; // an edit landed while a PUT was in flight: save once it returns, with the new rev
 const scheduleSave = () => {
+  if (config.readOnly || conflicted) return;
+  if (!dirty) { dirty = true; notifyParent({type: 'dirty'}); }
   setState({status: 'saving'});
   clearTimeout(saveTimer);
-  saveTimer = window.setTimeout(save, 250);
+  saveTimer = window.setTimeout(save, config.saveDebounceMs);
 };
 const save = async () => {
-  if (!state.project) return;
+  if (!state.project || config.readOnly || conflicted) return;
+  if (inFlight) { saveAgain = true; return; }
+  inFlight = true;
   try {
-    const r = await api('/api/project', {method: 'PUT', body: JSON.stringify({project: state.project})});
+    const r = await api('project', {method: 'PUT', body: JSON.stringify({project: state.project, rev: state.rev})});
+    if (r.status === 409) {
+      conflicted = true;
+      setState({status: 'conflict', message: 'Changed elsewhere — Reload'});
+      notifyParent({type: 'conflict'});
+      return;
+    }
     if (!r.ok) throw new Error(await r.text());
     const {rev, warnings} = (await r.json()) as {rev: number; warnings: string[]};
-    setState({rev, warnings, status: 'saved', message: ''});
+    if (!saveAgain) dirty = false;
+    setState({rev, warnings, status: saveAgain ? 'saving' : 'saved', message: ''});
+    notifyParent({type: 'saved', rev});
   } catch (e) {
     setState({status: 'error', message: `Save failed: ${(e as Error).message}`});
+  } finally {
+    inFlight = false;
+    if (saveAgain) { saveAgain = false; save(); }
   }
 };
 
 // Apply an edit (usually a DT.ly op) to a copy of the project, as one undo step.
 export const edit = (fn: (p: Project) => void) => {
-  if (!state.project) return;
+  if (!state.project || config.readOnly) return;
   const before = JSON.stringify(state.project);
   const next = JSON.parse(before) as Project;
   try {
@@ -87,7 +106,7 @@ export const edit = (fn: (p: Project) => void) => {
 
 // Drags re-apply from the snapshot on every move, then commit as a single undo step.
 let dragBase: string | null = null;
-export const dragStart = () => { dragBase = state.project ? JSON.stringify(state.project) : null; };
+export const dragStart = () => { dragBase = state.project && !config.readOnly ? JSON.stringify(state.project) : null; };
 export const dragUpdate = (fn: (p: Project) => void) => {
   if (!dragBase) return;
   const next = JSON.parse(dragBase) as Project;
@@ -104,6 +123,7 @@ export const dragEnd = () => {
 };
 
 export const undo = () => {
+  if (config.readOnly) return;
   const prev = undoStack.pop();
   if (!prev || !state.project) return;
   redoStack.push(JSON.stringify(state.project));
@@ -111,6 +131,7 @@ export const undo = () => {
   scheduleSave();
 };
 export const redo = () => {
+  if (config.readOnly) return;
   const next = redoStack.pop();
   if (!next || !state.project) return;
   undoStack.push(JSON.stringify(state.project));
@@ -119,24 +140,41 @@ export const redo = () => {
 };
 
 // --- loading & live reload ----------------------------------------------------------------
+let ready = false;
 export const load = async (fromDisk = false) => {
-  const r = await api('/api/project');
+  const r = await api('project');
   const {rev, project} = (await r.json()) as {rev: number; project: Project};
+  conflicted = false;
+  dirty = false;
+  clearTimeout(saveTimer);
   if (fromDisk && state.project) {
     undoStack.push(JSON.stringify(state.project)); // an external edit can be undone here too
     redoStack.length = 0;
   }
   const comp = project.comps.some((c) => c.id === state.comp) ? state.comp : project.root;
   const layer = state.layer && project.comps.some((c) => c.layers.some((l) => l.id === state.layer)) ? state.layer : null;
-  setState({project, rev, comp, layer, key: layer ? state.key : null, status: fromDisk ? 'reloaded' : 'saved', message: fromDisk ? 'Reloaded: the file changed on disk' : ''});
+  setState({project, rev, comp, layer, key: layer ? state.key : null, status: config.readOnly ? 'readonly' : fromDisk ? 'reloaded' : 'saved', message: fromDisk ? 'Reloaded: the file changed on disk' : ''});
+  if (!ready) { ready = true; notifyParent({type: 'ready', rev}); }
 };
 
-export const connectEvents = () => {
-  const es = new EventSource(`/api/events?token=${config.token}`);
-  es.addEventListener('project', (e) => {
-    const {rev} = JSON.parse((e as MessageEvent).data) as {rev: number};
-    if (rev > state.rev) load(true);
+// The embedding page may ask for a reload (e.g. after it changed the project itself).
+if (config.parentOrigin) {
+  window.addEventListener('message', (e) => {
+    if (e.origin !== config.parentOrigin || (e.data as {type?: string} | null)?.type !== 'reload') return;
+    load(true);
   });
+}
+
+export const connectEvents = () => {
+  if (!config.features.events) return;
+  const es = new EventSource(`${apiUrl('events')}?token=${config.token}`);
+  // A host may answer with one event and close; EventSource reconnects, which works as polling.
+  const onRev = (e: Event) => {
+    const {rev} = JSON.parse((e as MessageEvent).data) as {rev: number};
+    if (rev > state.rev && !inFlight) load(true);
+  };
+  es.addEventListener('project', onRev);
+  es.addEventListener('hello', onRev);
   es.addEventListener('render', (e) => {
     const d = JSON.parse((e as MessageEvent).data) as {done?: number; total?: number; finished?: boolean; out?: string; error?: string; took?: number};
     if (d.error) setState({render: {active: false, error: d.error}});
@@ -146,8 +184,10 @@ export const connectEvents = () => {
 };
 
 export const startRender = async () => {
+  if (config.features.render === false) return;
+  if (config.features.render === 'browser') { notifyParent({type: 'export', comp: state.comp}); return; }
   setState({render: {active: true, done: 0}});
-  const r = await api('/api/render', {method: 'POST', body: JSON.stringify({comp: state.comp})});
+  const r = await api('render', {method: 'POST', body: JSON.stringify({comp: state.comp})});
   if (!r.ok) setState({render: {active: false, error: await r.text()}});
 };
 

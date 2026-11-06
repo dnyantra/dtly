@@ -43,6 +43,8 @@ try {
   page.on('response', (r) => { if (r.status() >= 400) errors.push(`${r.status()} ${r.url()}`); });
   await page.goto(studio.url);
   await page.waitForSelector('.layer-row');
+  assert.equal(await page.title(), `${path.basename(file)} — DT.ly Studio`);
+  assert.equal(await page.$eval('.brand b', (el) => el.textContent), 'DT.ly');
   await page.waitForFunction(() => (document.querySelector('canvas.frame') as HTMLCanvasElement)?.dataset.time === '0', {timeout: 10000});
   await page.screenshot({path: path.join(shots, 'studio-1-loaded.png')});
   step(`loaded ${studio.url}`);
@@ -124,6 +126,36 @@ try {
   const out = path.join(path.dirname(file), `${path.basename(file, '.json')}.mp4`);
   assert.ok(fs.statSync(out).size > 10000);
   step(`render from studio → ${path.basename(out)}`);
+
+  // Embedding: a host overrides window.DTLY (brand, read-only, no render) and gets the token back.
+  const embed = await startStudio({project: file, port: 0, config: {brand: 'CustomerPro Video', readOnly: true, features: {render: false, events: true, svgImport: false}, media: 'direct', saveDebounceMs: 100}});
+  try {
+    assert.match(embed.token, /^[0-9a-f]{32}$/);
+    assert.equal(embed.url, `http://127.0.0.1:${embed.port}/`);
+    assert.equal((await fetch(`${embed.url}api/project`)).status, 403);
+    const got = await fetch(`${embed.url}api/project`, {headers: {'x-dtly-token': embed.token}});
+    assert.equal(got.status, 200);
+    const {rev, project} = await got.json() as {rev: number; project: unknown};
+    assert.equal((await fetch(`${embed.url}api/project`, {method: 'PUT', headers: {'x-dtly-token': embed.token}, body: JSON.stringify({rev, project})})).status, 403, 'read-only rejects saves');
+    assert.equal((await fetch(`${embed.url}api/render?token=${embed.token}`, {method: 'POST', body: '{}'})).status, 403, 'render: false rejects renders');
+    const p2 = await browser.newPage();
+    p2.on('pageerror', (e) => errors.push(String(e)));
+    await p2.goto(embed.url);
+    await p2.waitForSelector('.layer-row');
+    assert.equal(await p2.title(), `${path.basename(file)} — CustomerPro Video Studio`);
+    assert.equal(await p2.$eval('.brand b', (el) => el.textContent), 'CustomerPro Video');
+    const cfg = await p2.evaluate(() => (window as unknown as {DTLY: Record<string, unknown>}).DTLY);
+    assert.deepEqual({brand: cfg.brand, readOnly: cfg.readOnly, media: cfg.media, saveDebounceMs: cfg.saveDebounceMs, token: cfg.token}, {brand: 'CustomerPro Video', readOnly: true, media: 'direct', saveDebounceMs: 100, token: embed.token});
+    await p2.screenshot({path: path.join(shots, 'studio-4-embedded.png')});
+    await p2.close();
+  } finally { embed.close(); }
+  // Brand text is escaped in the title and in the inline config script.
+  const odd = await startStudio({project: file, port: 0, config: {brand: 'A</script><b>&'}});
+  try {
+    const html = await (await fetch(odd.url)).text();
+    assert.ok(html.includes('<title>A&lt;/script&gt;&lt;b&gt;&amp; Studio</title>') && !html.includes('A</script>'), html.slice(0, 600));
+  } finally { odd.close(); }
+  step('startStudio({config}): brand in header + title, readOnly/render enforced, {url, port, token, close}');
 
   assert.deepEqual(errors, [], `browser errors:\n${errors.join('\n')}`);
   step('no browser errors');

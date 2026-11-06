@@ -2,4 +2,7 @@
 export {renderStill, renderContactSheet, renderVideo, renderVideoParallel, loadProject} from './render/export.js';
 export {NodeHost, registerFonts, newCanvas} from './render/node-host.js';
 export {readProject, writeProject, editProject} from './ops/store.js';
-export {checkFfmpeg} from './render/ffmpeg.js';
+export {resolveVideoEncoder, videoEncoderArgs, listEncoders, pickEncoder, parseEncoders, hardwareEncoders, bitrateFor, clearEncoderCache, VIDEO_ENCODERS, type VideoEncoder, type VideoEncoderChoice, type ResolvedEncoder} from './render/encoder.js';
+export type {VideoExportOptions} from './render/export.js';
+export {checkFfmpeg, ffmpegPath, ffprobePath} from './render/ffmpeg.js';
+export {detectBeats, detectBeatsFromPcm, decodeMono, type BeatGrid, type BeatOptions} from './render/beats.js';

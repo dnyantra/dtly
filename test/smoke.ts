@@ -66,7 +66,10 @@ step('MP4 render (1 s)');
 const client = new Client({name: 'dtly-test', version: '0'});
 await client.connect(new StdioClientTransport({command: process.execPath, args: [...process.execArgv, path.resolve('src/cli.ts'), 'mcp']}));
 const tools = (await client.listTools()).tools.map((t) => t.name);
-assert.ok(tools.includes('keyframe_set') && tools.includes('render_frame'));
+// The MCP surface (an adapter over src/tools) keeps the same 26 tools.
+assert.deepEqual(tools, ['project_create', 'project_describe', 'project_validate', 'layer_get', 'comp_add', 'comp_update', 'layer_add', 'layer_update', 'layer_remove', 'layer_move',
+  'layer_duplicate', 'layer_shift', 'property_set', 'keyframe_set', 'keyframe_remove', 'keyframe_move', 'keyframe_ease', 'svg_import', 'captions_add', 'map_tiles', 'preset_list',
+  'preset_apply', 'studio_open', 'render_frame', 'render_sheet', 'render_video']);
 const call = async (name: string, args: Record<string, unknown>) => {
   const res = await client.callTool({name, arguments: args});
   assert.ok(!res.isError, `${name}: ${JSON.stringify(res.content)}`);

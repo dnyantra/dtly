@@ -1,0 +1,27 @@
+name = "customerpro-director-staging"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Secrets (set with `wrangler secret put`, never committed):
+#   DIRECTOR_PROXY_SECRET  shared HS256/HMAC secret with Laravel (CustomerPro)
+#   ANTHROPIC_API_KEY      Anthropic API key used for upstream calls
+
+[vars]
+# Staging for now; production gets its own deploy (name + LARAVEL_URL) later.
+LARAVEL_URL = "https://staging.customerpro.in"
+# Optional:
+# ANTHROPIC_BASE_URL = "https://api.anthropic.com"
+# USAGE_RETRY_BASE_MS = "500"
+# USAGE_RETRY_ATTEMPTS = "5"
+
+[[durable_objects.bindings]]
+name = "METER"
+class_name = "SessionMeter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SessionMeter"]
+
+[observability]
+enabled = true

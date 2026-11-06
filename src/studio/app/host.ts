@@ -2,9 +2,14 @@
 import {val} from '../../core/anim.js';
 import type {AudioLayer, Composition, Project, VideoLayer} from '../../core/model.js';
 import type {CanvasLike, Drawable, Host} from '../../render/renderer.js';
-import {config} from './config.js';
+import {apiUrl, config} from './config.js';
 
-export const mediaUrl = (src: string) => (src.startsWith('data:') ? src : `/api/media?src=${encodeURIComponent(src)}&token=${config.token}`);
+// 'direct' (embedded): absolute URLs load as they are; relative paths still go through the host's media route.
+export const mediaUrl = (src: string) => {
+  if (src.startsWith('data:')) return src;
+  if (config.media === 'direct' && /^(https?:|blob:)/i.test(src)) return src;
+  return `${apiUrl('media')}?src=${encodeURIComponent(src)}&token=${config.token}`;
+};
 
 const waitFor = (el: HTMLMediaElement, event: string, ms = 2000) =>
   new Promise<void>((resolve) => {
@@ -41,7 +46,10 @@ export class BrowserHost implements Host {
         const img = new Image();
         img.onload = () => resolve(img);
         img.onerror = () => reject(new Error(`Could not load ${src}`));
-        img.src = mediaUrl(src);
+        const url = mediaUrl(src);
+        // Cross-origin media (embedded, direct URLs) must not taint the canvas that effects read back.
+        if (/^https?:/i.test(url) && new URL(url).origin !== location.origin) img.crossOrigin = 'anonymous';
+        img.src = url;
       }));
     }
     return this.images.get(src)!;
@@ -142,8 +150,8 @@ export class AudioPreview {
 // Fonts: the bundled families plus any the project registers.
 export const loadFonts = async (project: Project) => {
   const faces: FontFace[] = [
-    new FontFace('Baloo 2', 'url(/fonts/Baloo2.ttf)', {weight: '400 800'}),
-    new FontFace('Mukta', 'url(/fonts/Mukta-Bold.ttf)', {weight: '400 800'}),
+    new FontFace('Baloo 2', `url(${config.fontsBase}/Baloo2.ttf)`, {weight: '400 800'}),
+    new FontFace('Mukta', `url(${config.fontsBase}/Mukta-Bold.ttf)`, {weight: '400 800'}),
   ];
   for (const [family, files] of Object.entries(project.fonts ?? {})) for (const f of files) faces.push(new FontFace(family, `url(${mediaUrl(f)})`));
   await Promise.all(faces.map(async (f) => { try { document.fonts.add(await f.load()); } catch { /* missing font: fall back */ } }));
