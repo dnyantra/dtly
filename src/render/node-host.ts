@@ -7,6 +7,7 @@ import {Canvas, FontLibrary, ImageData, loadImage} from 'skia-canvas';
 import {isAnimated, type Effect, type Project, type VideoLayer} from '../core/model.js';
 import {GRADE_TYPES} from './grade.js';
 import type {CanvasLike, Drawable, Host} from './renderer.js';
+import {ffmpegPath} from './ffmpeg.js';
 
 // CPU rendering by default: deterministic, and the GPU backend can drop draws when a shader
 // compile times out (seen with JPEG/YUV images on Metal). DTLY_GPU=1 opts back in.
@@ -62,7 +63,7 @@ class VideoReader {
       fit === 'fill' ? `scale=${w}:${h}`
       : fit === 'contain' ? `scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black@0`
       : `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}`;
-    this.proc = spawn('ffmpeg', ['-v', 'error', '-ss', String(Math.max(0, startSeconds)), '-i', this.file, '-vf', [`fps=${this.rate}`, scale, ...this.extraFilters, 'format=rgba'].join(','), '-f', 'rawvideo', '-pix_fmt', 'rgba', '-']);
+    this.proc = spawn(ffmpegPath(), ['-v', 'error', '-ss', String(Math.max(0, startSeconds)), '-i', this.file, '-vf', [`fps=${this.rate}`, scale, ...this.extraFilters, 'format=rgba'].join(','), '-f', 'rawvideo', '-pix_fmt', 'rgba', '-']);
     const proc = this.proc;
     proc.stdout.on('data', (chunk: Buffer) => {
       if (proc !== this.proc) return;

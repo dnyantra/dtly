@@ -4,7 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {isAnimated, type Composition, type Project} from '../core/model.js';
-import {checkFfmpeg} from './ffmpeg.js';
+import {resolveVideoEncoder, videoEncoderArgs, type ResolvedEncoder, type VideoEncoderChoice} from './encoder.js';
+import {checkFfmpeg, ffmpegPath} from './ffmpeg.js';
 import {newCanvas, NodeHost, registerFonts} from './node-host.js';
 import {Renderer} from './renderer.js';
 
@@ -128,18 +129,50 @@ const audioGraph = (project: Project, comp: Composition, baseDir: string, from: 
   return {inputs: audible.flatMap((c) => ['-i', c.file]), filter: [...chains, mix].join(';'), count: audible.length};
 };
 
+// Runs FFmpeg; `done` rejects with the tail of FFmpeg's stderr (its real error) on failure.
 const runFfmpeg = (args: string[], stdin = false) => {
-  const ff = spawn('ffmpeg', args, {stdio: [stdin ? 'pipe' : 'ignore', 'inherit', 'pipe']});
+  const ff = spawn(ffmpegPath(), args, {stdio: [stdin ? 'pipe' : 'ignore', 'inherit', 'pipe']});
   let err = '';
-  ff.stderr!.on('data', (d: Buffer) => (err += d));
-  const done = new Promise<void>((res, rej) => ff.on('close', (code: number) => (code === 0 ? res() : rej(new Error(`ffmpeg failed (${code}): ${err.slice(-2000)}`)))));
-  return {ff, done};
+  let exited = false;
+  ff.stderr!.on('data', (d: Buffer) => { err = (err + d).slice(-8000); });
+  // FFmpeg may exit before reading all of stdin (bad args, unknown encoder, full disk): the write
+  // then fails with EPIPE. Swallow it here; the exit code and stderr below carry the real error.
+  ff.stdin?.on('error', () => {});
+  const done = new Promise<void>((res, rej) => {
+    ff.on('error', (e) => { exited = true; rej(new Error(`Could not run ffmpeg (${ffmpegPath()}): ${e.message}`)); });
+    ff.on('close', (code: number | null, signal: string | null) => {
+      exited = true;
+      if (code === 0) res();
+      else rej(new Error(`ffmpeg failed (${code ?? signal}): ${err.trim().slice(-2000) || 'no error output'}`));
+    });
+  });
+  done.catch(() => {}); // callers await it; never an unhandled rejection meanwhile
+  /** Writes to stdin, waiting for drain; resolves false once FFmpeg has gone away. */
+  const write = (buf: Buffer) => new Promise<boolean>((res) => {
+    const stdinOk = () => !exited && !ff.stdin!.destroyed && ff.stdin!.writable;
+    if (!stdinOk()) return res(false);
+    if (ff.stdin!.write(buf)) return res(true);
+    const settle = () => { ff.stdin!.off('drain', settle); ff.stdin!.off('error', settle); ff.stdin!.off('close', settle); ff.off('close', settle); res(stdinOk()); };
+    ff.stdin!.once('drain', settle).once('error', settle).once('close', settle);
+    ff.once('close', settle);
+  });
+  return {ff, done, write};
 };
 
-const X264 = (crf = 18) => ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', String(crf), '-preset', 'medium'];
+export interface VideoExportOptions {
+  comp?: string;
+  from?: number;
+  to?: number;
+  /** x264-style quality (lower = better, default 18); mapped per encoder, see encoder.ts. */
+  crf?: number;
+  /** H.264 encoder (default: env DTLY_VIDEO_ENCODER, else 'auto'). */
+  videoEncoder?: VideoEncoderChoice;
+  onProgress?: (done: number, total: number) => void;
+}
 
-export const renderVideo = async (projectFile: string, out: string, opts: {comp?: string; from?: number; to?: number; crf?: number; audio?: boolean; onProgress?: (done: number, total: number) => void} = {}) => {
+export const renderVideo = async (projectFile: string, out: string, opts: VideoExportOptions & {audio?: boolean; /** @internal resolved by the parent of chunk workers */ resolvedEncoder?: ResolvedEncoder} = {}) => {
   checkFfmpeg();
+  const encoder = opts.resolvedEncoder ?? resolveVideoEncoder(opts.videoEncoder);
   const {project, baseDir, host, renderer} = setup(projectFile);
   const comp = renderer.comp(opts.comp ?? project.root);
   const from = opts.from ?? 0, to = Math.min(opts.to ?? comp.duration, comp.duration);
@@ -148,29 +181,34 @@ export const renderVideo = async (projectFile: string, out: string, opts: {comp?
   const audio = opts.audio === false ? {inputs: [], filter: null, count: 0} : audioGraph(project, comp, baseDir, from, to, 1);
   const args = ['-y', '-v', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgba', '-s', `${comp.width}x${comp.height}`, '-r', String(comp.fps), '-i', '-', ...audio.inputs];
   if (audio.filter) args.push('-filter_complex', audio.filter, '-map', '0:v', '-map', '[aout]', '-c:a', 'aac', '-b:a', '192k');
-  args.push(...X264(opts.crf), '-movflags', '+faststart', '-frames:v', String(total), out);
-  const {ff, done} = runFfmpeg(args, true);
+  args.push(...videoEncoderArgs(encoder, opts.crf ?? 18, comp), '-movflags', '+faststart', '-frames:v', String(total), out);
+  const {ff, done, write} = runFfmpeg(args, true);
 
-  const canvas = newCanvas(comp.width, comp.height);
-  const ctx = canvas.getContext('2d') as unknown as CanvasRenderingContext2D;
-  for (let f = 0; f < total; f++) {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, comp.width, comp.height);
-    if (!comp.background) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, comp.width, comp.height); }
-    await renderer.renderComp(ctx, comp, from + f / comp.fps);
-    const raw = canvas.toBufferSync('raw');
-    if (!ff.stdin!.write(raw)) await new Promise((r) => ff.stdin!.once('drain', r));
-    opts.onProgress?.(f + 1, total);
+  try {
+    const canvas = newCanvas(comp.width, comp.height);
+    const ctx = canvas.getContext('2d') as unknown as CanvasRenderingContext2D;
+    for (let f = 0; f < total; f++) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, comp.width, comp.height);
+      if (!comp.background) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, comp.width, comp.height); }
+      await renderer.renderComp(ctx, comp, from + f / comp.fps);
+      if (!(await write(canvas.toBufferSync('raw')))) break; // FFmpeg exited: `done` has its error
+      opts.onProgress?.(f + 1, total);
+    }
+    if (ff.stdin!.writable) ff.stdin!.end();
+    await done;
+  } catch (e) {
+    ff.kill();
+    throw e;
+  } finally {
+    host.close();
   }
-  ff.stdin!.end();
-  await done;
-  host.close();
-  return {out, frames: total, seconds: to - from, audioTracks: audio.count};
+  return {out, frames: total, seconds: to - from, audioTracks: audio.count, encoder: encoder.encoder};
 };
 
 // Splits the timeline across worker processes (one per core), then joins the chunks
 // losslessly and mixes the audio once over the whole range.
-export const renderVideoParallel = async (projectFile: string, out: string, opts: {comp?: string; from?: number; to?: number; crf?: number; workers?: number; onProgress?: (done: number, total: number) => void} = {}) => {
+export const renderVideoParallel = async (projectFile: string, out: string, opts: VideoExportOptions & {workers?: number} = {}) => {
   checkFfmpeg();
   const project = loadProject(projectFile);
   const comp = project.comps.find((c) => c.id === (opts.comp ?? project.root));
@@ -180,6 +218,7 @@ export const renderVideoParallel = async (projectFile: string, out: string, opts
   // One process is fastest for short videos (worker start-up dominates); opt in for long renders.
   const workers = Math.max(1, Math.min(opts.workers ?? 1, os.cpus().length, Math.ceil(total / 15)));
   if (workers === 1) return renderVideo(projectFile, out, opts);
+  const encoder = resolveVideoEncoder(opts.videoEncoder); // probe once here, not in every worker
 
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dtly-'));
   const here = fileURLToPath(import.meta.url);
@@ -190,7 +229,7 @@ export const renderVideoParallel = async (projectFile: string, out: string, opts
     return {file: path.join(tmp, `chunk-${i}.mp4`), from: a / comp.fps, to: b / comp.fps, frames: b - a};
   });
   await Promise.all(chunks.map((c, i) => new Promise<void>((res, rej) => {
-    const child = fork(cli, ['chunk', projectFile, c.file, String(c.from), String(c.to), opts.comp ?? '', String(opts.crf ?? 18)], {execArgv: process.execArgv, stdio: ['ignore', 'ignore', 'pipe', 'ipc']});
+    const child = fork(cli, ['chunk', projectFile, c.file, String(c.from), String(c.to), opts.comp ?? '', String(opts.crf ?? 18), `${encoder.encoder}:${encoder.rate}`], {execArgv: process.execArgv, stdio: ['ignore', 'ignore', 'pipe', 'ipc']});
     let err = '';
     child.stderr!.on('data', (d: Buffer) => (err += d));
     child.on('message', (m: {done?: number}) => {
@@ -207,5 +246,5 @@ export const renderVideoParallel = async (projectFile: string, out: string, opts
   args.push('-c:v', 'copy', '-movflags', '+faststart', out);
   await runFfmpeg(args).done;
   fs.rmSync(tmp, {recursive: true, force: true});
-  return {out, frames: total, seconds: to - from, audioTracks: audio.count, workers};
+  return {out, frames: total, seconds: to - from, audioTracks: audio.count, encoder: encoder.encoder, workers};
 };

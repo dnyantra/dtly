@@ -9,7 +9,10 @@ import type {Project} from '../core/model.js';
 import {validate} from '../ops/ops.js';
 import {readProject, writeProject} from '../ops/store.js';
 import {renderVideoParallel} from '../render/export.js';
-import {BRAND, VERSION} from '../version.js';
+import {VERSION} from '../version.js';
+import type {StudioConfig, StudioEmbedConfig} from './config-types.js';
+
+export type {StudioConfig, StudioEmbedConfig, StudioFeatures} from './config-types.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // dist/studio/server.js → dist/studio-app ; src/studio/server.ts (dev) → dist/studio-app
@@ -60,9 +63,30 @@ const mediaFiles = (p: Project, baseDir: string, extra: Set<string>) => {
   return files;
 };
 
-export interface StudioOptions { project: string; port?: number; host?: string; onReady?: (url: string) => void }
+export interface StudioOptions {
+  project: string;
+  port?: number; // default 4400; 0 picks a free port
+  host?: string; // default 127.0.0.1
+  onReady?: (url: string) => void;
+  /** Overrides for the page's window.DTLY config (hosts that embed Studio). Default: the CLI Studio. */
+  config?: StudioEmbedConfig;
+}
 
-export const startStudio = async (opts: StudioOptions) => {
+export interface StudioHandle {
+  url: string;
+  port: number;
+  /** API token (header x-dtly-token or ?token=) the page uses; hosts calling the API need it too. */
+  token: string;
+  close: () => void;
+  server: http.Server;
+}
+
+const DEFAULT_BRAND = 'DT.ly';
+const escapeHtml = (s: string) => s.replace(/[&<>"]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]!);
+// JSON inside <script>: no "</script>" or "<!--" breakouts.
+const scriptJson = (v: unknown) => JSON.stringify(v).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+
+export const startStudio = async (opts: StudioOptions): Promise<StudioHandle> => {
   if (!APP_DIR) throw new Error('Studio app bundle not found. Run `npm run build` first.');
   const projectFile = path.resolve(opts.project);
   const baseDir = path.dirname(projectFile);
@@ -73,6 +97,7 @@ export const startStudio = async (opts: StudioOptions) => {
   let rev = 1;
   let ownMtime = 0;
   let rendering = false;
+  const pageConfig: StudioConfig = {...opts.config, token, file: path.basename(projectFile), version: VERSION, brand: opts.config?.brand || DEFAULT_BRAND};
 
   const broadcast = (event: string, data: unknown) => {
     for (const res of clients) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -103,7 +128,9 @@ export const startStudio = async (opts: StudioOptions) => {
     }
     try {
       if (url.pathname === '/' || url.pathname === '/index.html') {
-        const html = fs.readFileSync(path.join(APP_DIR, 'index.html'), 'utf8').replace('__DTLY_CONFIG__', JSON.stringify({token, file: path.basename(projectFile), version: VERSION, brand: BRAND}));
+        const html = fs.readFileSync(path.join(APP_DIR, 'index.html'), 'utf8')
+          .replace('__DTLY_CONFIG__', () => scriptJson(pageConfig))
+          .replace(/<title>[^<]*<\/title>/, () => `<title>${escapeHtml(pageConfig.brand)} Studio</title>`);
         res.writeHead(200, {'Content-Type': MIME['.html'], 'Cache-Control': 'no-store'}).end(html);
       } else if (url.pathname.startsWith('/app/')) {
         const file = path.join(APP_DIR, path.normalize(url.pathname.slice(5)).replace(/^(\.\.[/\\])+/, ''));
@@ -115,6 +142,7 @@ export const startStudio = async (opts: StudioOptions) => {
       } else if (url.pathname === '/api/project' && req.method === 'GET') {
         res.writeHead(200, {'Content-Type': MIME['.json'], 'Cache-Control': 'no-store'}).end(JSON.stringify({rev, project: readProject(projectFile)}));
       } else if (url.pathname === '/api/project' && req.method === 'PUT') {
+        if (pageConfig.readOnly) { res.writeHead(403, {'Content-Type': 'text/plain'}).end('Read-only'); return; }
         const body = JSON.parse(await readBody(req)) as {project: Project; rev?: number};
         if (body.project?.dtly !== 1) throw new Error('Not a DT.ly project');
         // A client saving from an older revision would overwrite an edit it never saw.
@@ -139,6 +167,7 @@ export const startStudio = async (opts: StudioOptions) => {
         clients.add(res);
         req.on('close', () => clients.delete(res));
       } else if (url.pathname === '/api/render' && req.method === 'POST') {
+        if (pageConfig.features?.render === false) { res.writeHead(403, {'Content-Type': 'text/plain'}).end('Rendering is off'); return; }
         if (rendering) { res.writeHead(409).end('A render is already running'); return; }
         const body = JSON.parse((await readBody(req)) || '{}') as {out?: string; from?: number; to?: number; comp?: string};
         const out = path.resolve(baseDir, body.out || `${path.basename(projectFile, '.json')}.mp4`);
@@ -165,6 +194,6 @@ export const startStudio = async (opts: StudioOptions) => {
   const addr = server.address() as {port: number};
   const url = `http://${host === '0.0.0.0' ? 'localhost' : host}:${addr.port}/`;
   opts.onReady?.(url);
-  const close = () => { watcher.close(); clients.forEach((c) => c.end()); server.close(); };
-  return {url, close, server};
+  const close = () => { clearTimeout(debounce); watcher.close(); clients.forEach((c) => c.end()); server.close(); server.closeAllConnections?.(); };
+  return {url, port: addr.port, token, close, server};
 };

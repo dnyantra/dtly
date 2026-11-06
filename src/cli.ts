@@ -4,6 +4,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {installSkill, MCP_SETUP, setupGuide, skillTargets} from './agents.js';
 import {listPresets, PRESETS} from './presets/index.js';
+import type {ResolvedEncoder, VideoEncoderChoice} from './render/encoder.js';
 import {renderContactSheet, renderStill, renderVideo, renderVideoParallel} from './render/export.js';
 import {editProject, writeProject} from './ops/store.js';
 import {addSvg} from './ops/ops.js';
@@ -15,7 +16,7 @@ const usage = `${BRAND}  v${VERSION}
 After Effects-style motion graphics as JSON, rendered to MP4.
 
   dtly init <project.json> [--starter opener|kinetic|bars] [--title "Text"]
-  dtly render <project.json> <out.mp4> [--from s] [--to s] [--comp id] [--workers n]
+  dtly render <project.json> <out.mp4> [--from s] [--to s] [--comp id] [--workers n] [--encoder auto|libx264|h264_videotoolbox|h264_nvenc|h264_qsv|h264_amf|h264_mf]
   dtly still  <project.json> <time> <out.png> [--scale 0.5] [--comp id]
   dtly sheet  <project.json> <out.png> <t1,t2,...> [--comp id]
   dtly import-svg <project.json> <file.svg> [--width 600] [--at x,y] [--name logo] [--color #hex] [--comp id]
@@ -24,6 +25,8 @@ After Effects-style motion graphics as JSON, rendered to MP4.
                                word-highlight captions (audio/video is transcribed with Sarvam; needs SARVAM_API_KEY)
   dtly map-tiles <out.png> --tiles <url with {z}/{x}/{y}> (--route "lat,lon;lat,lon" | --bounds latN,lonW,latS,lonE) [--size 1080x1920] [--attribution "© OpenStreetMap"]
                                stitch a map background for map.route (you choose the provider and its licence)
+  dtly beats <audio> [out.beats.json]
+                               detect tempo and beats (writes a .beats.json for timeline.build)
   dtly presets                 list text animators, openers, slides, transitions, charts, captions, maps
   dtly studio <project.json> [--port 4400] [--no-open]   browser preview + timeline editor
   dtly mcp                     run the MCP server (stdio) for AI agents
@@ -40,14 +43,22 @@ try {
   if (cmd === 'render' && rest[1]) {
     const t0 = Date.now();
     const r = await renderVideoParallel(rest[0], rest[1], {
-      from: num(flag('from')), to: num(flag('to')), comp: flag('comp'), workers: num(flag('workers')),
+      from: num(flag('from')), to: num(flag('to')), comp: flag('comp'), workers: num(flag('workers')), videoEncoder: flag('encoder') as VideoEncoderChoice | undefined,
       onProgress: (d, n) => { if (d % 30 === 0 || d === n) process.stderr.write(`\r${d}/${n} frames`); },
     });
-    console.error(`\nRendered ${r.out}: ${r.frames} frames, ${r.audioTracks} audio tracks in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    console.error(`\nRendered ${r.out}: ${r.frames} frames, ${r.audioTracks} audio tracks in ${((Date.now() - t0) / 1000).toFixed(1)}s (${r.encoder})`);
   } else if (cmd === 'chunk') {
     // Internal: one parallel-render worker. Reports progress to the parent over IPC.
-    const [project, out, from, to, comp, crf] = rest;
-    await renderVideo(project, out, {from: Number(from), to: Number(to), comp: comp || undefined, crf: Number(crf), audio: false, onProgress: (d) => process.send?.({done: d})});
+    // The parent resolved (and probed) the encoder once: "<encoder>:<quality|bitrate>".
+    const [project, out, from, to, comp, crf, enc] = rest;
+    const [encoder, rate] = (enc ?? '').split(':');
+    const resolvedEncoder = encoder ? {encoder, rate: rate === 'bitrate' ? 'bitrate' : 'quality'} as ResolvedEncoder : undefined;
+    await renderVideo(project, out, {from: Number(from), to: Number(to), comp: comp || undefined, crf: Number(crf), audio: false, resolvedEncoder, onProgress: (d) => process.send?.({done: d})});
+  } else if (cmd === 'beats' && rest[0]) {
+    const {detectBeats} = await import('./render/beats.js');
+    const g = await detectBeats(rest[0]);
+    const json = JSON.stringify(g, null, 1);
+    if (rest[1]) { fs.writeFileSync(rest[1], json); console.error(`${g.tempo} BPM, ${g.beats.length} beats from ${g.first_beat}s → ${rest[1]}`); } else console.log(json);
   } else if (cmd === 'still' && rest[2]) {
     console.log(await renderStill(rest[0], Number(rest[1]), rest[2], {scale: num(flag('scale')), comp: flag('comp')}));
   } else if (cmd === 'sheet' && rest[2]) {

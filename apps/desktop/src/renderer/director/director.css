@@ -1,0 +1,40 @@
+/* Director panel (task 4.5) */
+.workspace.director-open { grid-template-columns: 260px 1fr 400px; }
+@media (max-width: 1360px) { .workspace.director-open { grid-template-columns: 230px 1fr 360px; } }
+.director section { border-bottom: 1px solid var(--line); padding: 8px 0; }
+.director textarea { width: 100%; resize: vertical; }
+.director select { width: 100%; margin-top: 2px; }
+.director .dir-head h3 { margin: 12px 0 8px; }
+.director .premium { gap: 4px; }
+.director .notice { border: 1px solid var(--line); background: var(--panel2); border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
+.director .notice.warn { border-color: #6b5520; background: #2b2412; }
+.director .notice.error { border-color: #7a3328; background: #3b1d18; }
+.director .notice .row { margin-top: 6px; flex-wrap: wrap; }
+.director .running { margin: 8px 0 4px; color: var(--accent2); }
+.director .spinner { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--accent); border-right-color: transparent; animation: dir-spin .8s linear infinite; }
+@keyframes dir-spin { to { transform: rotate(360deg); } }
+.director .stop { width: 100%; margin: 4px 0; border-color: #7a3328; }
+.director .feed { max-height: 280px; overflow: auto; margin: 8px 0; display: flex; flex-direction: column; gap: 4px; }
+.director .msg { padding: 6px 8px; border-radius: 8px; background: var(--panel2); white-space: pre-wrap; word-break: break-word; }
+.director .msg.user { background: #2a221b; align-self: flex-end; max-width: 90%; }
+.director .msg.system { background: none; color: var(--muted); font-size: 12px; padding: 2px 0; }
+.director .msg.streaming { opacity: .85; }
+.director .step { font: 11px/1.4 ui-monospace, Menlo, monospace; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.director .step.error, .director .step.blocked { color: var(--warn); }
+.director .step.start { color: var(--accent2); }
+.director .chat textarea { flex: 1; resize: none; }
+.director .plan-actions { margin-top: 8px; }
+.plan-card .plan-title { width: 100%; font-weight: 600; font-size: 14px; }
+.plan-card .beats { padding-left: 18px; margin: 8px 0; }
+.plan-card .beat { margin-bottom: 10px; }
+.plan-card .beat label { display: flex; flex-direction: column; color: var(--muted); margin-top: 3px; }
+.plan-card .beat textarea { resize: vertical; }
+.plan-card .num { width: 56px; }
+.plan-card .shot { margin: 3px 0; }
+.plan-card .shot select { width: auto; max-width: 150px; flex: 1; }
+.plan-card h4 { margin: 10px 0 4px; font-size: 12px; color: var(--muted); }
+.plan-card .facts, .plan-card .gaps { margin: 0; padding-left: 16px; }
+.plan-card .facts li { margin: 3px 0; }
+.plan-card .source { font-size: 10px; border: 1px solid var(--line); border-radius: 8px; padding: 1px 6px; color: var(--muted); max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-card .gaps li { color: var(--warn); }
+.confirm-detail { white-space: pre-wrap; max-height: 200px; overflow: auto; }

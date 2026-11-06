@@ -7,10 +7,12 @@ import {CHART_PRESETS} from './charts.js';
 import {APP_PRESETS} from './app.js';
 import {CAPTION_PRESETS} from './captions.js';
 import {MAP_PRESETS} from './maps.js';
+import {BLOCK_PRESETS} from './blocks.js';
+import {TIMELINE_PRESETS} from './timeline.js';
 
 type Params = Record<string, unknown>;
 export interface Preset {
-  kind: 'text' | 'kinetic' | 'opener' | 'slides' | 'transition' | 'element' | 'chart' | 'overlay' | 'map' | 'captions';
+  kind: 'text' | 'kinetic' | 'opener' | 'slides' | 'transition' | 'element' | 'chart' | 'overlay' | 'map' | 'captions' | 'block' | 'timeline';
   description: string;
   params: string; // human-readable parameter reference
   apply: (p: Project, comp: string | undefined, params: Params) => {created: string[]; note?: string};
@@ -297,7 +299,7 @@ PRESETS['element.highlightWord'] = {
   },
 };
 
-Object.assign(PRESETS, CHART_PRESETS, APP_PRESETS, CAPTION_PRESETS, MAP_PRESETS);
+Object.assign(PRESETS, CHART_PRESETS, APP_PRESETS, CAPTION_PRESETS, MAP_PRESETS, BLOCK_PRESETS, TIMELINE_PRESETS);
 
 export const listPresets = () =>
   Object.entries(PRESETS).map(([name, p]) => `${name} [${p.kind}] — ${p.description}\n    params: ${p.params}`).join('\n');

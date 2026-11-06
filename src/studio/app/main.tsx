@@ -225,7 +225,7 @@ const TopBar = ({onPresets}: {onPresets: () => void}) => {
   const [menu, setMenu] = useState(false);
   return (
     <header class="topbar">
-      <div class="brand"><b>DT.ly</b> Studio <span class="muted">· {config.file}</span></div>
+      <div class="brand"><b>{config.brand}</b> Studio <span class="muted">· {config.file}</span></div>
       <nav class="comps">
         {project?.comps.map((c) => (
           <button key={c.id} class={c.id === compId ? 'active' : ''} onClick={() => { stop(); setState({comp: c.id, layer: null, key: null, time: 0}); }}>
@@ -285,7 +285,7 @@ const App = () => {
 };
 
 (async () => {
-  document.title = `${config.file} — DT.ly Studio`;
+  document.title = `${config.file} — ${config.brand} Studio`;
   await load();
   // Fit the whole comp into the timeline width on open.
   const c = currentComp();

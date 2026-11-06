@@ -30,6 +30,27 @@ they make.
 ## Install
 
 Requires **Node.js 20+** and **FFmpeg** on your PATH (`brew install ffmpeg`, `sudo apt install ffmpeg`, or `winget install ffmpeg`).
+Apps that bundle their own FFmpeg can point DT.ly at it with `DTLY_FFMPEG` and `DTLY_FFPROBE`.
+
+**H.264 encoder.** MP4 exports use `libx264` when your FFmpeg has it. LGPL builds don't (libx264 is GPL), so DT.ly
+then picks the platform hardware encoder that FFmpeg lists and that passes a tiny test encode (probed once per run):
+`h264_videotoolbox` on macOS; `h264_nvenc`, `h264_qsv`, `h264_amf`, then `h264_mf` on Windows. Force one with
+`DTLY_VIDEO_ENCODER` (or `videoEncoder` in `renderVideo`, `--encoder` on `dtly render`): `auto` (default), `libx264`,
+`h264_videotoolbox`, `h264_mf`, `h264_qsv`, `h264_nvenc`, `h264_amf`. The `crf` option (x264 scale, default 18) maps
+to each encoder's quality control:
+
+| Encoder | Quality options for CRF N |
+| --- | --- |
+| `libx264` | `-crf N -preset medium` |
+| `h264_videotoolbox` | `-q:v round(100 − 1.6·N)` (CRF 16 → 74, 18 → 71) |
+| `h264_mf` | `-rate_control quality -quality round(100 − 1.6·N)` |
+| `h264_nvenc` | `-rc constqp -qp N` |
+| `h264_qsv` | `-global_quality N` |
+| `h264_amf` | `-rc cqp -qp_i N -qp_p N` |
+
+If an encoder rejects its quality mode in the test encode (VideoToolbox `-q:v` needs Apple Silicon), DT.ly uses an
+average bitrate instead (`-b:v`, about 9 Mb/s for 1080×1920 at 30 fps and CRF 18). Hardware encoders give somewhat
+bigger files than x264 at similar quality. When FFmpeg fails, the error carries the end of its own stderr.
 
 ```bash
 npm install @dnyantra/dtly
@@ -118,7 +139,22 @@ The studio listens on 127.0.0.1 only and its API needs a per-session token.
 
 ### Embedding Studio
 
-Studio can run inside another web app. The built bundle ships in the package as `@dnyantra/dtly/studio-app/*` (`app.js`, `app.css`). Serve it on a page that sets `window.DTLY` before loading `app.js`. The host implements the same small HTTP API the CLI server does, under its own base path:
+Studio can run inside another web app. A Node host can run DT.ly's own server with its own config:
+
+```ts
+import {startStudio} from '@dnyantra/dtly/studio';
+
+const {url, port, token, close} = await startStudio({
+  project: '/path/to/project.json', port: 0, // 0 = any free port on 127.0.0.1
+  config: {brand: 'CustomerPro Video', media: 'direct', features: {render: 'browser', events: true, svgImport: true}, readOnly: false, parentOrigin: 'app://shell'},
+});
+```
+
+`config` takes every `window.DTLY` key below except `token`, `file` and `version`, which the server owns.
+`brand` (default `DT.ly`) shows in the header and the page title. With `readOnly`, the server also refuses saves;
+with `features.render: false` it refuses `POST /api/render`. `token` is what API calls need (`X-DTLY-Token`).
+
+Or serve the bundle yourself. The built bundle ships in the package as `@dnyantra/dtly/studio-app/*` (`app.js`, `app.css`). Serve it on a page that sets `window.DTLY` before loading `app.js`. The host implements the same small HTTP API the CLI server does, under its own base path:
 
 | Call | Request | Response |
 | --- | --- | --- |
@@ -161,13 +197,14 @@ After `npm install -g @dnyantra/dtly` (or via `npx @dnyantra/dtly …`):
 
 ```
 dtly init <project.json> [--starter opener|kinetic|bars] [--title "Text"]
-dtly render <project.json> <out.mp4> [--from s] [--to s] [--comp id] [--workers n]
+dtly render <project.json> <out.mp4> [--from s] [--to s] [--comp id] [--workers n] [--encoder auto|libx264|h264_videotoolbox|…]
 dtly still  <project.json> <time> <out.png> [--scale 0.5]
 dtly sheet  <project.json> <out.png> <t1,t2,...>
 dtly import-svg <project.json> <file.svg> [--width 600] [--at x,y]
 dtly captions <project.json> <audio|video|.srt|.vtt|.json> [--lang mr-IN]
 dtly map-tiles <out.png> --tiles <url> --route "lat,lon;lat,lon" [--attribution "…"]
 dtly studio <project.json> [--port 4400] [--no-open]
+dtly beats <music.wav> [out.beats.json]   # tempo + beat grid for timeline.build
 dtly presets
 dtly mcp
 dtly setup <claude|codex|cursor|gemini|copilot|windsurf>
@@ -194,7 +231,29 @@ await renderVideo('promo.json', 'promo.mp4');
 ```
 
 Entry points: `@dnyantra/dtly` (model, edits, presets, renderer — browser-safe),
-`@dnyantra/dtly/node` (MP4/PNG rendering, project files), `@dnyantra/dtly/mcp` (MCP server).
+`@dnyantra/dtly/node` (MP4/PNG rendering, project files, `detectBeats`), `@dnyantra/dtly/mcp` (MCP server),
+`@dnyantra/dtly/tools` (the MCP tools as plain handlers — `TOOLS`, `toolByName` — for your own agent loop;
+the host passes `ctx.allowRead` and, optionally, `ctx.allowWrite` path guards), `@dnyantra/dtly/studio` (`startStudio`).
+
+### Blocks and the timeline builder
+
+Graphic blocks (`block.titlePlate`, `block.chip`, `block.kickerChip`, `block.areaReveal`, `block.badge`, `block.price`,
+`block.bigName`, `block.endCard`, `block.logoTile`, `block.textMaskIntro`, `block.watermark`, `grade.look`) take a
+`brand: {colors: {primary, accent, ink}, fonts: {heading, body}}` and add ordinary editable layers.
+`timeline.build` turns a shot list, a music track with its beats (`dtly beats`), voiceover cues and overlay blocks into a
+finished reel: one precomp per shot, cuts snapped to the beat, transitions, voiceover and ducked music.
+
+```ts
+import {detectBeats} from '@dnyantra/dtly/node';
+const {beats} = await detectBeats('music/track.wav');
+PRESETS['timeline.build'].apply(p, 'main', {
+  shots: [{id: 'board', src: 'media/board.mp4', dur: 3, overlay: {block: 'block.titlePlate', params: {title: 'KK PARK'}}}, /* … */],
+  music: {src: 'music/track.wav', beats},
+  transitions: ['whip', 'zoom', 'flash'],
+  vo: [{src: 'vo/l1.wav', duration: 2.2, at: {shot: 'board', offset: 0.35}}],
+  grade: 'punch',
+});
+```
 Installing the package also gives you the `dtly` command.
 
 ## The model
