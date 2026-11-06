@@ -116,6 +116,45 @@ npx @dnyantra/dtly studio project.json
 
 The studio listens on 127.0.0.1 only and its API needs a per-session token.
 
+### Embedding Studio
+
+Studio can run inside another web app. The built bundle ships in the package as `@dnyantra/dtly/studio-app/*` (`app.js`, `app.css`). Serve it on a page that sets `window.DTLY` before loading `app.js`. The host implements the same small HTTP API the CLI server does, under its own base path:
+
+| Call | Request | Response |
+| --- | --- | --- |
+| Load | `GET {apiBase}/project` | `{rev, project}` |
+| Save | `PUT {apiBase}/project` with `{project, rev}` | `{rev, warnings}`, or `409` when `rev` is older than the stored one |
+| Media | `GET {apiBase}/media?src=` | the file (only when `media` is `'proxy'`, or the src is relative) |
+| SVG import | `GET {apiBase}/svg?src=` | SVG text |
+| Live updates | `GET {apiBase}/events` | SSE: `hello` or `project` events with `{rev}`. A host may send one event and close with a `retry:` interval; Studio's reconnects then act as polling |
+
+Every request carries the token as an `X-DTLY-Token` header or a `?token=` parameter.
+
+```js
+window.DTLY = {
+  token: '…', file: 'My reel', version: '0.3.1', brand: 'DT.ly',
+  apiBase: '/video/projects/5/studio-api', // default '/api'
+  fontsBase: '/build/dtly-studio/fonts',   // default '/fonts' (Baloo2.ttf, Mukta-Bold.ttf)
+  media: 'direct',                         // default 'proxy'; 'direct' loads absolute http(s)/blob URLs as they are
+  features: {render: 'browser', events: true, svgImport: true}, // render: 'server' (default) | 'browser' | false
+  saveDebounceMs: 1500,                    // default 250
+  readOnly: false,                         // true: no edits, no saves, "Read only" in the status bar
+  parentOrigin: 'https://app.example.com', // enables postMessage to and from window.parent
+};
+```
+
+With `parentOrigin` set, Studio posts these messages to the parent page:
+
+- `{source: 'dtly', type: 'ready', rev}` once loaded;
+- `{type: 'dirty'}` on the first edit after a save;
+- `{type: 'saved', rev}`;
+- `{type: 'conflict'}` when a save gets `409`. Autosave stops until the user clicks Reload;
+- `{type: 'export', comp}` when `features.render` is `'browser'` and the user clicks Export.
+
+Studio accepts `{type: 'reload'}` from `parentOrigin` only.
+
+With `media: 'direct'`, cross-origin images and video load with `crossOrigin="anonymous"`, so the media host must send CORS headers. Studio's CSS is global (`:root`, `body`, `button`), so embed it in an iframe.
+
 ## Command line
 
 After `npm install -g @dnyantra/dtly` (or via `npx @dnyantra/dtly …`):

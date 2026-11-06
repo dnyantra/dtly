@@ -115,8 +115,10 @@ export const startStudio = async (opts: StudioOptions) => {
       } else if (url.pathname === '/api/project' && req.method === 'GET') {
         res.writeHead(200, {'Content-Type': MIME['.json'], 'Cache-Control': 'no-store'}).end(JSON.stringify({rev, project: readProject(projectFile)}));
       } else if (url.pathname === '/api/project' && req.method === 'PUT') {
-        const body = JSON.parse(await readBody(req)) as {project: Project};
+        const body = JSON.parse(await readBody(req)) as {project: Project; rev?: number};
         if (body.project?.dtly !== 1) throw new Error('Not a DT.ly project');
+        // A client saving from an older revision would overwrite an edit it never saw.
+        if (typeof body.rev === 'number' && body.rev < rev) { res.writeHead(409, {'Content-Type': 'text/plain'}).end('Changed elsewhere'); return; }
         writeProject(projectFile, body.project);
         ownMtime = fs.statSync(projectFile).mtimeMs;
         rev++;

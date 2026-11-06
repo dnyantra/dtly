@@ -4,8 +4,8 @@ import {useEffect, useState} from 'preact/hooks';
 import type {NewLayer} from '../../core/model.js';
 import {addComp, addLayer, addSvg, removeKeyframe, removeLayer, shiftLayer, duplicateLayer, updateLayer} from '../../ops/ops.js';
 import {PRESETS} from '../../presets/index.js';
-import {config} from './config.js';
-import {AudioPreview, loadFonts} from './host.js';
+import {apiUrl, config} from './config.js';
+import {AudioPreview, loadFonts, mediaUrl} from './host.js';
 import {Inspector} from './Inspector.js';
 import {connectEvents, currentComp, edit, getState, load, redo, selectedLayer, setState, snap, startRender, undo, useStore} from './store.js';
 import {keyTimes, Timeline} from './Timeline.js';
@@ -55,7 +55,7 @@ const addAndSelect = (layer: NewLayer) => {
   edit((p) => { id = addLayer(p, comp.id, {inPoint: snap(getState().time, comp.fps), ...layer} as NewLayer).id; });
   if (id) setState({layer: id, key: null});
 };
-const ADD: Record<string, () => void> = {
+const ADD_ALL: Record<string, () => void> = {
   Text: () => addAndSelect({type: 'text', name: 'Text', text: 'Your text', size: Math.round(currentComp()!.width / 10), color: '#ffffff', weight: 800} as NewLayer),
   Shape: () => addAndSelect({type: 'shape', name: 'Shape', shape: 'ellipse', size: [300, 300], fill: '#E8692A'} as NewLayer),
   Solid: () => addAndSelect({type: 'solid', name: 'Solid', color: '#1f2933'} as NewLayer),
@@ -74,7 +74,7 @@ const ADD: Record<string, () => void> = {
   'SVG as editable shapes…': async () => {
     const src = prompt('Path to the .svg file, relative to the project file:');
     if (!src) return;
-    const r = await fetch(`/api/svg?src=${encodeURIComponent(src)}&token=${config.token}`);
+    const r = await fetch(`${apiUrl('svg')}?src=${encodeURIComponent(src)}&token=${config.token}`);
     if (!r.ok) { setState({message: await r.text()}); return; }
     const svg = await r.text();
     const comp = currentComp()!;
@@ -90,6 +90,8 @@ const ADD: Record<string, () => void> = {
     addAndSelect({type: 'precomp', name: id, comp: id} as NewLayer);
   },
 };
+
+const ADD = Object.fromEntries(Object.entries(ADD_ALL).filter(([k]) => config.features.svgImport || k !== 'SVG as editable shapes…'));
 
 // --- presets dialog -------------------------------------------------------------------------
 const PresetDialog = ({onClose}: {onClose: () => void}) => {
@@ -233,20 +235,25 @@ const TopBar = ({onPresets}: {onPresets: () => void}) => {
       </nav>
       <div class="actions">
         <div class="menu-wrap">
-          <button onClick={() => setMenu(!menu)}>+ Layer ▾</button>
+          <button disabled={config.readOnly} onClick={() => setMenu(!menu)}>+ Layer ▾</button>
           {menu && <div class="menu" onMouseLeave={() => setMenu(false)}>{Object.entries(ADD).map(([k, fn]) => <button key={k} onClick={() => { setMenu(false); fn(); }}>{k}</button>)}</div>}
         </div>
-        <button onClick={onPresets}>Presets…</button>
-        <button title="Undo (⌘Z)" onClick={undo}>↶</button>
-        <button title="Redo (⇧⌘Z)" onClick={redo}>↷</button>
-        <button class="primary" disabled={rend.active} onClick={() => { stop(); startRender(); }}>
-          {rend.active ? `Rendering ${rend.total ? Math.round(((rend.done ?? 0) / rend.total) * 100) : 0}%` : 'Render MP4'}
-        </button>
+        <button disabled={config.readOnly} onClick={onPresets}>Presets…</button>
+        <button title="Undo (⌘Z)" disabled={config.readOnly} onClick={undo}>↶</button>
+        <button title="Redo (⇧⌘Z)" disabled={config.readOnly} onClick={redo}>↷</button>
+        {config.features.render === 'browser' && <button class="primary" onClick={() => { stop(); startRender(); }}>Export</button>}
+        {config.features.render === 'server' && (
+          <button class="primary" disabled={rend.active} onClick={() => { stop(); startRender(); }}>
+            {rend.active ? `Rendering ${rend.total ? Math.round(((rend.done ?? 0) / rend.total) * 100) : 0}%` : 'Render MP4'}
+          </button>
+        )}
       </div>
       <div class={`status ${status}`} title={warnings.join('\n')}>
-        {message || (status === 'saving' ? 'Saving…' : status === 'error' ? 'Save failed' : status === 'reloaded' ? 'Reloaded from disk' : 'Saved')}
+        {status === 'conflict'
+          ? <a href="#" onClick={(e) => { e.preventDefault(); load(); }}>{message || 'Changed elsewhere — Reload'}</a>
+          : message || (status === 'saving' ? 'Saving…' : status === 'error' ? 'Save failed' : status === 'reloaded' ? 'Reloaded from disk' : status === 'readonly' ? 'Read only' : 'Saved')}
         {warnings.length > 0 && <span class="warn"> · {warnings.length} warning{warnings.length > 1 ? 's' : ''}</span>}
-        {rend.out && !rend.active && <a href={`/api/media?src=${encodeURIComponent(rend.out)}&token=${config.token}`} target="_blank"> · open {rend.out}</a>}
+        {rend.out && !rend.active && <a href={mediaUrl(rend.out)} target="_blank"> · open {rend.out}</a>}
         {rend.error && <span class="error"> · render failed: {rend.error}</span>}
       </div>
     </header>

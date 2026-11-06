@@ -25,6 +25,7 @@ textarea { width: 100%; font-family: ui-monospace, Menlo, monospace; font-size: 
 .actions { display: flex; gap: 6px; margin-left: auto; }
 .status { color: var(--muted); white-space: nowrap; max-width: 34vw; overflow: hidden; text-overflow: ellipsis; }
 .status.error { color: var(--danger); } .status.reloaded { color: var(--key); } .status .warn { color: var(--key); }
+.status.conflict, .status.conflict a { color: var(--danger); } .status.readonly { color: var(--key); }
 .status a { color: var(--accent); }
 .menu-wrap { position: relative; }
 .menu { position: absolute; top: 30px; left: 0; z-index: 20; display: flex; flex-direction: column; min-width: 190px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 4px; box-shadow: 0 8px 24px #0008; }
