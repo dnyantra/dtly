@@ -1,4 +1,4 @@
-name = "dtly-director-proxy"
+name = "customerpro-director-staging"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
 compatibility_flags = ["nodejs_compat"]
@@ -8,8 +8,8 @@ compatibility_flags = ["nodejs_compat"]
 #   ANTHROPIC_API_KEY      Anthropic API key used for upstream calls
 
 [vars]
-# Placeholder: set to the CustomerPro base URL (no trailing slash needed).
-LARAVEL_URL = "https://customerpro.example.com"
+# Staging for now; production gets its own deploy (name + LARAVEL_URL) later.
+LARAVEL_URL = "https://staging.customerpro.in"
 # Optional:
 # ANTHROPIC_BASE_URL = "https://api.anthropic.com"
 # USAGE_RETRY_BASE_MS = "500"
