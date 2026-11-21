@@ -19,7 +19,7 @@
           "size": 60,
           "weight": 600,
           "color": "#FFC93C",
-          "inPoint": 1.5,
+          "inPoint": -1.7000000000000002,
           "transform": {
             "position": [
               540,
